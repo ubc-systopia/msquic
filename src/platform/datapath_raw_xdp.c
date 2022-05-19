@@ -1001,7 +1001,7 @@ CxPlatDpRawInitialize(
     if (Config && Config->DataPathProcList) {
         size_t ProcListBytes = Config->DataPathProcListLength * sizeof(uint16_t);
         ProcList = malloc(ProcListBytes);
-        if (ProcList) {
+        if (ProcList == NULL) {
             Status = QUIC_STATUS_OUT_OF_MEMORY;
             goto Error;
         }
@@ -1114,7 +1114,6 @@ CxPlatDpRawInitialize(
     }
 
     #pragma warning(push)
-    #pragma warning(disable:6011)
     #pragma warning(disable:6385)
     Xdp->Running = TRUE;
     for (uint32_t i = 0; i < Xdp->WorkerCount; i++) {

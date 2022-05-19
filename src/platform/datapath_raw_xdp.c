@@ -783,15 +783,6 @@ CxPlatDpRawInterfaceInitialize(
         }
     }
 
-    //
-    // Add each queue to a worker (round robin).
-    //
-    for (uint8_t i = 0; i < Interface->QueueCount; i++) {
-        XdpWorkerAddQueue(
-            &Xdp->Workers[i % Xdp->WorkerCount],
-            &Interface->Queues[i]);
-    }
-
 Error:
     if (QUIC_FAILED(Status)) {
         CxPlatDpRawInterfaceUninitialize(Interface);
@@ -1116,8 +1107,10 @@ CxPlatDpRawInitialize(
     #pragma warning(push)
     #pragma warning(disable:6385)
     Xdp->Running = TRUE;
+    uint32_t ValidXdpWorkerCount = 0;
     for (uint32_t i = 0; i < Xdp->WorkerCount; i++) {
         if (ProcList[i] != (uint16_t)-1) { // Skip RSS procs.
+            ValidXdpWorkerCount++;
             Xdp->Workers[i].Xdp = Xdp;
             Xdp->Workers[i].ProcIndex = ProcList[i];
             CxPlatEventInitialize(&Xdp->Workers[i].CompletionEvent, TRUE, FALSE);
@@ -1125,6 +1118,21 @@ CxPlatDpRawInitialize(
         }
     }
     #pragma warning(pop)
+
+    Xdp->WorkerCount = ValidXdpWorkerCount;
+    CXPLAT_LIST_ENTRY* Entry;
+    for (Entry = Xdp->Interfaces.Flink; Entry != &Xdp->Interfaces; Entry = Entry->Flink) {
+        XDP_INTERFACE* Interface = CONTAINING_RECORD(Entry, XDP_INTERFACE, Link);
+        //
+        // Add each queue to a worker (round robin).
+        //
+        for (uint8_t i = 0; i < Interface->QueueCount; i++) {
+            XdpWorkerAddQueue(
+                &Xdp->Workers[i % Xdp->WorkerCount],
+                &Interface->Queues[i]);
+        }
+    }
+
     Status = QUIC_STATUS_SUCCESS;
 
 Error:

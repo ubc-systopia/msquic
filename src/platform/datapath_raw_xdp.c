@@ -139,7 +139,9 @@ CxPlatDataPathRecvDataToRecvPacket(
 QUIC_STATUS
 CxPlatGetInterfaceRssQueueCount(
     _In_ uint32_t InterfaceIndex,
-    _Out_ uint16_t* Count
+    _Out_ uint16_t* Count,
+    uint16_t* RssProcs,
+    uint32_t RssProcsCount
     )
 {
     HRESULT hRes;
@@ -339,6 +341,15 @@ CxPlatGetInterfaceRssQueueCount(
                 hr = obj->lpVtbl->Get(obj, L"ProcessorGroup", 0, &vtProp, 0, 0);
                 UINT32 groupNum = vtProp.iVal;
                 VariantClear(&vtProp);
+                if (RssProcs) {
+                    for (uint32_t j = 0; j < RssProcsCount; ++j) {
+                        uint16_t RssProcNum = (uint16_t)(CxPlatProcessorGroupOffsets[groupNum] + procNum);
+                        if (RssProcs[j] == RssProcNum) {
+                            RssProcs[j] = (uint16_t)-1;
+                            printf("excluded RSS proc %u\n", RssProcNum);
+                        }
+                    }
+                }
                 CXPLAT_DBG_ASSERT(groupNum < numberOfProcGroups);
                 CXPLAT_DBG_ASSERT(procNum < numberOfProcs);
                 *(rssTable + groupNum * numberOfProcs + procNum) = 1;
@@ -504,7 +515,9 @@ QUIC_STATUS
 CxPlatDpRawInterfaceInitialize(
     _In_ XDP_DATAPATH* Xdp,
     _Inout_ XDP_INTERFACE* Interface,
-    _In_ uint32_t ClientRecvContextLength
+    _In_ uint32_t ClientRecvContextLength,
+    uint16_t* RssProcs,
+    uint32_t RssProcsCount
     )
 {
     const uint32_t RxHeadroom = sizeof(XDP_RX_PACKET) + ALIGN_UP(ClientRecvContextLength, uint32_t);
@@ -517,7 +530,7 @@ CxPlatDpRawInterfaceInitialize(
     Interface->OffloadStatus.Transmit.NetworkLayerXsum = Xdp->SkipXsum;
     Interface->OffloadStatus.Transmit.NetworkLayerXsum = Xdp->SkipXsum;
 
-    Status = CxPlatGetInterfaceRssQueueCount(Interface->IfIndex, &Interface->QueueCount);
+    Status = CxPlatGetInterfaceRssQueueCount(Interface->IfIndex, &Interface->QueueCount, RssProcs, RssProcsCount);
     if (QUIC_FAILED(Status)) {
         goto Error;
     }
@@ -983,13 +996,21 @@ CxPlatDpRawInitialize(
     QUIC_STATUS Status;
 
     uint16_t DefaultProc = (uint16_t)(CxPlatProcMaxCount() - 1);
-    const uint16_t* ProcList =
-        (Config && Config->DataPathProcList) ? Config->DataPathProcList : &DefaultProc;
+    uint16_t* ProcList = &DefaultProc;
+    Xdp->WorkerCount = 1;
+    if (Config && Config->DataPathProcList) {
+        size_t ProcListBytes = Config->DataPathProcListLength * sizeof(uint16_t);
+        ProcList = malloc(ProcListBytes);
+        if (ProcList) {
+            Status = QUIC_STATUS_OUT_OF_MEMORY;
+            goto Error;
+        }
+        memcpy(ProcList, Config->DataPathProcList, ProcListBytes);
+        Xdp->WorkerCount = Config->DataPathProcListLength;
+    }
 
     CxPlatXdpReadConfig(Xdp);
     CxPlatListInitializeHead(&Xdp->Interfaces);
-    Xdp->WorkerCount =
-        (Config && Config->DataPathProcList) ? Config->DataPathProcListLength : 1;
 
     PIP_ADAPTER_ADDRESSES Adapters = NULL;
     ULONG Error;
@@ -1051,7 +1072,11 @@ CxPlatDpRawInitialize(
 
                 Status =
                     CxPlatDpRawInterfaceInitialize(
-                        Xdp, Interface, ClientRecvContextLength);
+                        Xdp,
+                        Interface,
+                        ClientRecvContextLength,
+                        ProcList != &DefaultProc ? ProcList : NULL,
+                        ProcList != &DefaultProc ? Config->DataPathProcListLength : 0);
                 if (QUIC_FAILED(Status)) {
                     QuicTraceEvent(
                         LibraryErrorStatus,
@@ -1088,13 +1113,19 @@ CxPlatDpRawInitialize(
         goto Error;
     }
 
+    #pragma warning(push)
+    #pragma warning(disable:6011)
+    #pragma warning(disable:6385)
     Xdp->Running = TRUE;
     for (uint32_t i = 0; i < Xdp->WorkerCount; i++) {
-        Xdp->Workers[i].Xdp = Xdp;
-        Xdp->Workers[i].ProcIndex = ProcList[i];
-        CxPlatEventInitialize(&Xdp->Workers[i].CompletionEvent, TRUE, FALSE);
-        CxPlatWorkerRegisterDataPath(ProcList[i], &Xdp->Workers[i]);
+        if (ProcList[i] != (uint16_t)-1) { // Skip RSS procs.
+            Xdp->Workers[i].Xdp = Xdp;
+            Xdp->Workers[i].ProcIndex = ProcList[i];
+            CxPlatEventInitialize(&Xdp->Workers[i].CompletionEvent, TRUE, FALSE);
+            CxPlatWorkerRegisterDataPath(ProcList[i], &Xdp->Workers[i]);
+        }
     }
+    #pragma warning(pop)
     Status = QUIC_STATUS_SUCCESS;
 
 Error:

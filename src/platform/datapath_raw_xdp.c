@@ -1110,7 +1110,6 @@ CxPlatDpRawInitialize(
     uint32_t ValidXdpWorkerCount = 0;
     for (uint32_t i = 0; i < Xdp->WorkerCount; i++) {
         if (ProcList[i] != (uint16_t)-1) { // Skip RSS procs.
-            ValidXdpWorkerCount++;
             Xdp->Workers[ValidXdpWorkerCount].Xdp = Xdp;
             Xdp->Workers[ValidXdpWorkerCount].ProcIndex = ProcList[i];
             CxPlatEventInitialize(&Xdp->Workers[ValidXdpWorkerCount].CompletionEvent, TRUE, FALSE);

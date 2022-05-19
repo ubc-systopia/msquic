@@ -1111,10 +1111,11 @@ CxPlatDpRawInitialize(
     for (uint32_t i = 0; i < Xdp->WorkerCount; i++) {
         if (ProcList[i] != (uint16_t)-1) { // Skip RSS procs.
             ValidXdpWorkerCount++;
-            Xdp->Workers[i].Xdp = Xdp;
-            Xdp->Workers[i].ProcIndex = ProcList[i];
-            CxPlatEventInitialize(&Xdp->Workers[i].CompletionEvent, TRUE, FALSE);
-            CxPlatWorkerRegisterDataPath(ProcList[i], &Xdp->Workers[i]);
+            Xdp->Workers[ValidXdpWorkerCount].Xdp = Xdp;
+            Xdp->Workers[ValidXdpWorkerCount].ProcIndex = ProcList[i];
+            CxPlatEventInitialize(&Xdp->Workers[ValidXdpWorkerCount].CompletionEvent, TRUE, FALSE);
+            CxPlatWorkerRegisterDataPath(ProcList[i], &Xdp->Workers[ValidXdpWorkerCount]);
+            ValidXdpWorkerCount++;
         }
     }
     #pragma warning(pop)

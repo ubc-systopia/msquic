@@ -239,6 +239,8 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
 {
     CXPLAT_WORKER* Worker = (CXPLAT_WORKER*)Context;
     CXPLAT_DBG_ASSERT(Worker != NULL);
+    uint64_t TimerCount = 0;
+    uint64_t TimeNow = CxPlatTimeUs64();
 
     QuicTraceLogInfo(
         PlatformWorkerThreadStart,
@@ -252,7 +254,15 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         uint32_t WaitTime = UINT32_MAX;
 
 #ifdef QUIC_USE_EXECUTION_CONTEXTS
-        uint64_t TimeNow = CxPlatTimeUs64();
+        if (Worker->DatapathEC) {
+            if (TimerCount > 100) {
+                TimerCount = 0;
+                TimeNow = CxPlatTimeUs64();
+            }
+            ++TimerCount;
+        } else {
+            TimeNow = CxPlatTimeUs64();
+        }
         CxPlatRunExecutionContexts(Worker, &TimeNow);
         if (Worker->ECsReady) {
             WaitTime = 0;

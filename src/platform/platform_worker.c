@@ -220,7 +220,7 @@ CxPlatRunExecutionContexts(
     Worker->ECsReadyTime = UINT64_MAX;
 
     CXPLAT_SLIST_ENTRY** EC = &Worker->ExecutionContexts;
-    while (QuicReadPtrAcquire(EC) != NULL) {
+    while (*EC != NULL) {
         CXPLAT_EXECUTION_CONTEXT* Context =
             CXPLAT_CONTAINING_RECORD(*EC, CXPLAT_EXECUTION_CONTEXT, Entry);
         if (Context->Ready || Context->NextTimeUs <= *TimeNow) {

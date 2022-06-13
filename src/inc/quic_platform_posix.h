@@ -212,6 +212,7 @@ InterlockedIncrement64(
 }
 
 #define QuicReadPtrNoFence(p) ((void*)(*p)) // TODO
+#define QuicReadPtrAcquire(p) __atomic_load_n((ptr), __ATOMIC_ACQUIRE)
 
 //
 // Assertion interfaces.

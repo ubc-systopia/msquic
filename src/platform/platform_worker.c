@@ -50,11 +50,6 @@ typedef struct QUIC_CACHEALIGN CXPLAT_WORKER {
     CXPLAT_LOCK ECLock;
 
     //
-    // Execution contexts that are waiting to be added to CXPLAT_WORKER::ExecutionContexts.
-    //
-    CXPLAT_SLIST_ENTRY* PendingECs;
-
-    //
     // The set of actively registered execution contexts.
     //
     CXPLAT_SLIST_ENTRY* ExecutionContexts;
@@ -204,8 +199,8 @@ CxPlatAddExecutionContext(
     CXPLAT_WORKER* Worker = &CxPlatWorkers[IdealProcessor % CxPlatWorkerCount];
     Context->CxPlatContext = Worker;
     CxPlatLockAcquire(&Worker->ECLock);
-    Context->Entry.Next = Worker->PendingECs;
-    Worker->PendingECs = &Context->Entry;
+    Context->Entry.Next = Worker->ExecutionContexts;
+    Worker->ExecutionContexts = &Context->Entry; // Write release is free loaded on the lock release below
     CxPlatLockRelease(&Worker->ECLock);
 }
 
@@ -226,31 +221,16 @@ CxPlatRunExecutionContexts(
     Worker->ECsReady = FALSE;
     Worker->ECsReadyTime = UINT64_MAX;
 
-    if (QuicReadPtrNoFence(&Worker->PendingECs)) {
-        CXPLAT_SLIST_ENTRY** Tail = NULL;
-        CXPLAT_SLIST_ENTRY* Head = NULL;
-        CxPlatLockAcquire(&Worker->ECLock);
-        Head = Worker->PendingECs;
-        Worker->PendingECs = NULL;
-        CxPlatLockRelease(&Worker->ECLock);
-
-        Tail = &Head;
-        while (*Tail) {
-            Tail = &(*Tail)->Next;
-        }
-
-        *Tail = Worker->ExecutionContexts;
-        Worker->ExecutionContexts = Head;
-    }
-
     CXPLAT_SLIST_ENTRY** EC = &Worker->ExecutionContexts;
-    while (*EC != NULL) {
+    while (QuicReadPtrAcquire(EC) != NULL) {
         CXPLAT_EXECUTION_CONTEXT* Context =
             CXPLAT_CONTAINING_RECORD(*EC, CXPLAT_EXECUTION_CONTEXT, Entry);
         if (Context->Ready || Context->NextTimeUs <= *TimeNow) {
             CXPLAT_SLIST_ENTRY* Next = Context->Entry.Next;
             if (!Context->Callback(Context->Context, TimeNow, Worker->ThreadId)) {
+                CxPlatLockAcquire(&Worker->ECLock);
                 *EC = Next; // Remove Context from the list.
+                CxPlatLockRelease(&Worker->ECLock);
                 continue;
             } else if (Context->Ready) {
                 Worker->ECsReady = TRUE;

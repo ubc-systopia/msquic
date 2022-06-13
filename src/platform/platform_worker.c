@@ -198,10 +198,8 @@ CxPlatAddExecutionContext(
 {
     CXPLAT_WORKER* Worker = &CxPlatWorkers[IdealProcessor % CxPlatWorkerCount];
     Context->CxPlatContext = Worker;
-    CxPlatLockAcquire(&Worker->ECLock);
     Context->Entry.Next = Worker->ExecutionContexts;
     Worker->ExecutionContexts = &Context->Entry; // Write release is free loaded on the lock release below
-    CxPlatLockRelease(&Worker->ECLock);
 }
 
 void

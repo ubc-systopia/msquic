@@ -93,6 +93,7 @@ typedef struct XDP_DATAPATH {
     //
     // Currently, all XDP interfaces share the same config.
     //
+    uint32_t PlatformWorkerCount;
     uint32_t WorkerCount;
     uint32_t RxBufferCount;
     uint32_t RxRingSize;
@@ -996,6 +997,7 @@ CxPlatDpRawInitialize(
     CxPlatListInitializeHead(&Xdp->Interfaces);
     Xdp->WorkerCount =
         (Config && Config->DataPathProcList) ? Config->DataPathProcListLength : 1;
+    Xdp->PlatformWorkerCount = CxPlatProcActiveCount();
 
     PIP_ADAPTER_ADDRESSES Adapters = NULL;
     ULONG Error;
@@ -1340,6 +1342,8 @@ CxPlatXdpRx(
     uint32_t PacketCount = 0;
     const uint32_t BuffersCount = XskRingConsumerReserve(&Queue->RxRing, RX_BATCH_SIZE, &RxIndex);
 
+    UNREFERENCED_PARAMETER(ProcIndex);
+
     for (uint32_t i = 0; i < BuffersCount; i++) {
         XSK_BUFFER_DESCRIPTOR* Buffer = XskRingGetElement(&Queue->RxRing, RxIndex++);
         XDP_RX_PACKET* Packet =
@@ -1349,7 +1353,6 @@ CxPlatXdpRx(
         CxPlatZeroMemory(Packet, sizeof(XDP_RX_PACKET));
         Packet->Route = &Packet->RouteStorage;
         Packet->RouteStorage.Queue = Queue;
-        Packet->PartitionIndex = ProcIndex;
 
         CxPlatDpRawParseEthernet(
             (CXPLAT_DATAPATH*)Xdp,
@@ -1367,6 +1370,9 @@ CxPlatXdpRx(
         if (Packet->Buffer) {
             Packet->Allocated = TRUE;
             Packet->Queue = Queue;
+            Packet->PartitionIndex =
+                (CxPlatByteSwapUint16(Packet->Route->LocalAddress.Ipv4.sin_port) +
+                CxPlatByteSwapUint16(Packet->Route->RemoteAddress.Ipv4.sin_port)) % Xdp->PlatformWorkerCount;
             Buffers[PacketCount++] = (CXPLAT_RECV_DATA*)Packet;
         } else {
             CxPlatListPushEntry(&Queue->WorkerRxPool, (CXPLAT_SLIST_ENTRY*)Packet);

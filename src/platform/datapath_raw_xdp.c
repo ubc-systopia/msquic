@@ -1579,7 +1579,7 @@ CxPlatDataPathWake(
     _In_ void* Context
     )
 {
-    XDP_WORKER* Worker = *(XDP_WORKER**)Context;
+    XDP_WORKER* Worker = (XDP_WORKER*)Context;
     if (Worker->Queues && Worker->Queues->Next == NULL) {
         //
         // Try and wake.

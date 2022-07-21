@@ -1579,8 +1579,14 @@ CxPlatDataPathWake(
     _In_ void* Context
     )
 {
-    // No-op - XDP never sleeps!
-    UNREFERENCED_PARAMETER(Context);
+    XDP_WORKER* Worker = *(XDP_WORKER**)Context;
+    if (Worker->Queues && Worker->Queues->Next == NULL) {
+        //
+        // Try and wake.
+        //
+        XSK_NOTIFY_RESULT_FLAGS OutFlags;
+        (void)XskNotifySocket(Worker->Queues->RxXsk, XSK_NOTIFY_FLAG_CANCEL_WAIT, 0, &OutFlags);
+    }
 }
 
 BOOLEAN // Did work?
@@ -1608,6 +1614,15 @@ CxPlatDataPathRunEC(
         DidWork |= CxPlatXdpRx(Xdp, Queue, Worker->ProcIndex);
         DidWork |= CxPlatXdpTx(Xdp, Queue);
         Queue = Queue->Next;
+    }
+
+    if (!DidWork && WaitTime != UINT32_MAX &&
+        Worker->Queues && Worker->Queues->Next == NULL) {
+        //
+        // No work, only one queue and we should wait.
+        //
+        XSK_NOTIFY_RESULT_FLAGS OutFlags;
+        (void)XskNotifySocket(Worker->Queues->RxXsk, XSK_NOTIFY_FLAG_WAIT_RX, WaitTime, &OutFlags);
     }
 
     return DidWork;

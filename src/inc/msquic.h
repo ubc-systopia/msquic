@@ -25,6 +25,7 @@ Supported Platforms:
 #pragma once
 #endif
 
+#pragma warning(disable:4200)  // nonstandard extension used: zero-sized array in struct/union
 #pragma warning(disable:4201)  // nonstandard extension used: nameless struct/union
 #pragma warning(disable:4214)  // nonstandard extension used: bit field types other than int
 
@@ -230,6 +231,13 @@ typedef enum QUIC_DATAGRAM_SEND_STATE {
 //
 #define QUIC_DATAGRAM_SEND_STATE_IS_FINAL(State) \
     ((State) >= QUIC_DATAGRAM_SEND_LOST_DISCARDED)
+
+typedef enum QUIC_DATAPATH_CONFIG_FLAGS {
+    QUIC_DATAPATH_CONFIG_FLAG_NONE              = 0x0000,
+    QUIC_DATAPATH_CONFIG_FLAG_SHARED_THREADS    = 0x0001,   // QUIC and datapath share the same threads.
+} QUIC_DATAPATH_CONFIG_FLAGS;
+
+DEFINE_ENUM_FLAG_OPERATORS(QUIC_DATAPATH_CONFIG_FLAGS)
 
 
 typedef struct QUIC_REGISTRATION_CONFIG { // All fields may be NULL/zero.
@@ -673,6 +681,23 @@ typedef struct QUIC_STREAM_STATISTICS {
 } QUIC_STREAM_STATISTICS;
 
 //
+// A custom configuration for the datapath used by QUIC.
+//
+typedef struct QUIC_DATAPATH_CONFIG {
+
+    QUIC_DATAPATH_CONFIG_FLAGS Flags;
+    uint32_t SleepTimeoutUs;            // Number of microseconds of idleness
+                                        // before sleeping a datapath thread.
+    uint32_t ProcessorCount;
+    _Field_size_(ProcessorCount)
+    uint16_t ProcessorList[1];          // List of processors to use for datapath threads.
+
+} QUIC_DATAPATH_CONFIG;
+
+#define QUIC_DATAPATH_CONFIG_MIN_SIZE \
+    (uint32_t)FIELD_OFFSET(QUIC_DATAPATH_CONFIG, ProcessorList)
+
+//
 // Functions for associating application contexts with QUIC handles. MsQuic
 // provides no explicit synchronization between parallel calls to these
 // functions.
@@ -736,7 +761,7 @@ void
 #define QUIC_PARAM_GLOBAL_VERSION_SETTINGS              0x01000007  // QUIC_VERSION_SETTINGS
 #endif
 #define QUIC_PARAM_GLOBAL_LIBRARY_GIT_HASH              0x01000008  // char[64]
-#define QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS           0x01000009  // uint16_t[]
+#define QUIC_PARAM_GLOBAL_DATAPATH_CONFIG               0x01000009  // QUIC_DATAPATH_CONFIG
 #define QUIC_PARAM_GLOBAL_TLS_PROVIDER                  0x0100000A  // QUIC_TLS_PROVIDER
 
 //

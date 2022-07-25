@@ -477,7 +477,7 @@ CxPlatDataPathInitialize(
     _In_ uint32_t ClientRecvContextLength,
     _In_opt_ const CXPLAT_UDP_DATAPATH_CALLBACKS* UdpCallbacks,
     _In_opt_ const CXPLAT_TCP_DATAPATH_CALLBACKS* TcpCallbacks,
-    _In_opt_ CXPLAT_DATAPATH_CONFIG* Config,
+    _In_opt_ QUIC_DATAPATH_CONFIG* Config,
     _Out_ CXPLAT_DATAPATH** NewDataPath
     )
 {
@@ -2288,8 +2288,7 @@ CxPlatDataPathWake(
 BOOLEAN // Did work?
 CxPlatDataPathRunEC(
     _In_ void** Context,
-    _In_ CXPLAT_THREAD_ID CurThreadId,
-    _In_ uint32_t WaitTime
+    _In_ CXPLAT_EC_STATE* State
     )
 {
     CXPLAT_DATAPATH_PROC_CONTEXT** EcProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT**)Context;
@@ -2300,12 +2299,12 @@ CxPlatDataPathRunEC(
     const size_t EventListMax = 16; // TODO: Experiment.
     struct kevent EventList[EventListMax];
 
-    ProcContext->ThreadId = CurThreadId;
+    ProcContext->ThreadId = State->ThreadId;
 
     struct timespec Timeout = {0, 0};
-    if (WaitTime != UINT32_MAX) {
-        Timeout.tv_sec += (WaitTime / CXPLAT_MS_PER_SECOND);
-        Timeout.tv_nsec += ((WaitTime % CXPLAT_MS_PER_SECOND) * CXPLAT_NANOSEC_PER_MS);
+    if (State->WaitTime != UINT32_MAX) {
+        Timeout.tv_sec += (State->WaitTime / CXPLAT_MS_PER_SECOND);
+        Timeout.tv_nsec += ((State->WaitTime % CXPLAT_MS_PER_SECOND) * CXPLAT_NANOSEC_PER_MS);
     }
 
     int ReadyEventCount =
@@ -2316,7 +2315,7 @@ CxPlatDataPathRunEC(
                 0,
                 EventList,
                 EventListMax,
-                WaitTime == UINT32_MAX ? NULL : &Timeout));
+                State->WaitTime == UINT32_MAX ? NULL : &Timeout));
 
     if (ProcContext->Datapath->Shutdown) {
         *Context = NULL;

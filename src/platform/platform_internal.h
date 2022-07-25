@@ -227,11 +227,17 @@ CxPlatDataPathWake(
     _In_ void* Context
     );
 
+typedef struct CXPLAT_EC_STATE {
+    uint64_t TimeNow;       // microseconds
+    uint64_t LastWorkTime;  // microseconds
+    uint32_t WaitTime;      // milliseconds
+    CXPLAT_THREAD_ID ThreadId;
+} CXPLAT_EC_STATE;
+
 BOOLEAN // Did work?
 CxPlatDataPathRunEC(
     _In_ void** Context,
-    _In_ CXPLAT_THREAD_ID CurThreadId,
-    _In_ uint32_t WaitTime
+    _In_ CXPLAT_EC_STATE* State
     );
 
 void

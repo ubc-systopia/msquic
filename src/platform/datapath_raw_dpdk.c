@@ -105,7 +105,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 void
 CxPlatDpdkReadConfig(
     _Inout_ DPDK_DATAPATH* Dpdk,
-    _In_opt_ CXPLAT_DATAPATH_CONFIG* Config
+    _In_opt_ QUIC_DATAPATH_CONFIG* Config
     )
 {
     Dpdk->Cpu = (uint16_t)(CxPlatProcMaxCount() - 1);
@@ -113,8 +113,8 @@ CxPlatDpdkReadConfig(
     //
     // Read user-specified global config.
     //
-    if (Config != NULL && Config->DataPathProcList != NULL) {
-        Dpdk->Cpu = Config->DataPathProcList[0];
+    if (Config != NULL && Config->ProcessorCount != 0) {
+        Dpdk->Cpu = Config->ProcessorList[0];
     }
 
     FILE *File = fopen("dpdk.ini", "r");
@@ -144,7 +144,7 @@ CxPlatDpdkReadConfig(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 size_t
 CxPlatDpRawGetDatapathSize(
-    _In_opt_ const CXPLAT_DATAPATH_CONFIG* Config
+    _In_opt_ const QUIC_DATAPATH_CONFIG* Config
     )
 {
     UNREFERENCED_PARAMETER(Config);
@@ -156,7 +156,7 @@ QUIC_STATUS
 CxPlatDpRawInitialize(
     _Inout_ CXPLAT_DATAPATH* Datapath,
     _In_ uint32_t ClientRecvContextLength,
-    _In_opt_ const CXPLAT_DATAPATH_CONFIG* Config
+    _In_opt_ const QUIC_DATAPATH_CONFIG* Config
     )
 {
     DPDK_DATAPATH* Dpdk = (DPDK_DATAPATH*)Datapath;

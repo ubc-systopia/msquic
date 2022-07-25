@@ -161,13 +161,13 @@ TRACEPOINT_EVENT(CLOG_LIBRARY_C, LibrarySetSettings,
 
 
 /*----------------------------------------------------------
-// Decoder Ring for LibraryDataPathProcsSet
-// [ lib] Setting datapath procs
+// Decoder Ring for LibraryDataPathConfigSet
+// [ lib] Setting datapath config
 // QuicTraceLogInfo(
-            LibraryDataPathProcsSet,
-            "[ lib] Setting datapath procs");
+            LibraryDataPathConfigSet,
+            "[ lib] Setting datapath config");
 ----------------------------------------------------------*/
-TRACEPOINT_EVENT(CLOG_LIBRARY_C, LibraryDataPathProcsSet,
+TRACEPOINT_EVENT(CLOG_LIBRARY_C, LibraryDataPathConfigSet,
     TP_ARGS(
 ), 
     TP_FIELDS(
@@ -440,8 +440,8 @@ TRACEPOINT_EVENT(CLOG_LIBRARY_C, LibraryRelease,
 // QuicTraceEvent(
                 LibraryError,
                 "[ lib] ERROR, %s.",
-                "Tried to change raw datapath procs after datapath initialization");
-// arg2 = arg2 = "Tried to change raw datapath procs after datapath initialization" = arg2
+                "Tried to change datapath config after datapath initialization");
+// arg2 = arg2 = "Tried to change datapath config after datapath initialization" = arg2
 ----------------------------------------------------------*/
 TRACEPOINT_EVENT(CLOG_LIBRARY_C, LibraryError,
     TP_ARGS(

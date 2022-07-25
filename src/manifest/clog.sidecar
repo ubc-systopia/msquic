@@ -5622,6 +5622,13 @@
       ],
       "macroName": "QuicTraceLogInfo"
     },
+    "LibraryDataPathConfigSet": {
+      "ModuleProperites": {},
+      "TraceString": "[ lib] Setting datapath config",
+      "UniqueId": "LibraryDataPathConfigSet",
+      "splitArgs": [],
+      "macroName": "QuicTraceLogInfo"
+    },
     "LibraryDataPathProcsSet": {
       "ModuleProperites": {},
       "TraceString": "[ lib] Setting datapath procs",
@@ -13127,6 +13134,11 @@
         "UniquenessHash": "4574d3aa-0d58-420f-fa75-4b57a79d3fa8",
         "TraceID": "LibraryCidLengthSet",
         "EncodingString": "[ lib] CID Length = %hhu"
+      },
+      {
+        "UniquenessHash": "9cb7eab2-7c30-501c-3950-e8fca93ef658",
+        "TraceID": "LibraryDataPathConfigSet",
+        "EncodingString": "[ lib] Setting datapath config"
       },
       {
         "UniquenessHash": "1324b8f1-5f38-c7ca-d7e9-51314f15e172",

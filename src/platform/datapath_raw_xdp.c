@@ -93,6 +93,7 @@ typedef struct XDP_DATAPATH {
     //
     // Currently, all XDP interfaces share the same config.
     //
+    uint32_t SleepTimeoutUs;
     uint32_t WorkerCount;
     uint32_t RxBufferCount;
     uint32_t RxRingSize;
@@ -969,11 +970,11 @@ CxPlatDpRawInterfaceRemoveRules(
 _IRQL_requires_max_(PASSIVE_LEVEL)
 size_t
 CxPlatDpRawGetDatapathSize(
-    _In_opt_ const CXPLAT_DATAPATH_CONFIG* Config
+    _In_opt_ const QUIC_DATAPATH_CONFIG* Config
     )
 {
     const uint32_t WorkerCount =
-        (Config && Config->DataPathProcList) ? Config->DataPathProcListLength : 1;
+        (Config && Config->ProcessorCount) ? Config->ProcessorCount : 1;
     return sizeof(XDP_DATAPATH) + (WorkerCount * sizeof(XDP_WORKER));
 }
 
@@ -982,7 +983,7 @@ QUIC_STATUS
 CxPlatDpRawInitialize(
     _Inout_ CXPLAT_DATAPATH* Datapath,
     _In_ uint32_t ClientRecvContextLength,
-    _In_opt_ const CXPLAT_DATAPATH_CONFIG* Config
+    _In_opt_ const QUIC_DATAPATH_CONFIG* Config
     )
 {
     XDP_DATAPATH* Xdp = (XDP_DATAPATH*)Datapath;
@@ -990,12 +991,13 @@ CxPlatDpRawInitialize(
 
     uint16_t DefaultProc = (uint16_t)(CxPlatProcMaxCount() - 1);
     const uint16_t* ProcList =
-        (Config && Config->DataPathProcList) ? Config->DataPathProcList : &DefaultProc;
+        (Config && Config->ProcessorCount) ? Config->ProcessorList : &DefaultProc;
 
     CxPlatXdpReadConfig(Xdp);
     CxPlatListInitializeHead(&Xdp->Interfaces);
+    Xdp->SleepTimeoutUs = Config ? Config->SleepTimeoutUs : 0;
     Xdp->WorkerCount =
-        (Config && Config->DataPathProcList) ? Config->DataPathProcListLength : 1;
+        (Config && Config->ProcessorCount) ? Config->ProcessorCount : 1;
 
     PIP_ADAPTER_ADDRESSES Adapters = NULL;
     ULONG Error;
@@ -1580,7 +1582,9 @@ CxPlatDataPathWake(
     )
 {
     XDP_WORKER* Worker = (XDP_WORKER*)Context;
-    if (Worker->Queues && Worker->Queues->Next == NULL) {
+    if (Worker->Xdp->SleepTimeoutUs != UINT32_MAX &&
+        Worker->Queues &&
+        Worker->Queues->Next == NULL) {
         //
         // Try and wake.
         //
@@ -1592,15 +1596,11 @@ CxPlatDataPathWake(
 BOOLEAN // Did work?
 CxPlatDataPathRunEC(
     _In_ void** Context,
-    _In_ CXPLAT_THREAD_ID CurThreadId,
-    _In_ uint32_t WaitTime
+    _In_ CXPLAT_EC_STATE* State
     )
 {
     XDP_WORKER* Worker = *(XDP_WORKER**)Context;
     const XDP_DATAPATH* Xdp = Worker->Xdp;
-
-    UNREFERENCED_PARAMETER(CurThreadId);
-    UNREFERENCED_PARAMETER(WaitTime);
 
     if (!Xdp->Running) {
         *Context = NULL;
@@ -1616,13 +1616,17 @@ CxPlatDataPathRunEC(
         Queue = Queue->Next;
     }
 
-    if (!DidWork && WaitTime != UINT32_MAX &&
-        Worker->Queues && Worker->Queues->Next == NULL) {
+    if (!DidWork &&
+        State->WaitTime != UINT32_MAX &&
+        Worker->Queues &&
+        Worker->Queues->Next == NULL &&
+        CxPlatTimeDiff64(State->LastWorkTime, State->TimeNow) > Xdp->SleepTimeoutUs) {
         //
         // No work, only one queue and we should wait.
         //
         XSK_NOTIFY_RESULT_FLAGS OutFlags;
         (void)XskNotifySocket(Worker->Queues->RxXsk, XSK_NOTIFY_FLAG_WAIT_RX, WaitTime, &OutFlags);
+        DidWork = TRUE;
     }
 
     return DidWork;

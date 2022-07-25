@@ -220,7 +220,7 @@ CxPlatWakeExecutionContext(
 BOOLEAN // Did work?
 CxPlatRunExecutionContexts(
     _In_ CXPLAT_WORKER* Worker,
-    _Inout_ uint64_t* TimeNow
+    _Inout_ CXPLAT_EC_STATE* State
     )
 {
     Worker->ECsReady = FALSE;
@@ -249,10 +249,10 @@ CxPlatRunExecutionContexts(
         CXPLAT_EXECUTION_CONTEXT* Context =
             CXPLAT_CONTAINING_RECORD(*EC, CXPLAT_EXECUTION_CONTEXT, Entry);
         BOOLEAN Ready = InterlockedFetchAndClearBoolean(&Context->Ready);
-        if (Ready || Context->NextTimeUs <= *TimeNow) {
+        if (Ready || Context->NextTimeUs <= State->TimeNow) {
             CXPLAT_SLIST_ENTRY* Next = Context->Entry.Next;
             DidWork = TRUE;
-            if (!Context->Callback(Context->Context, TimeNow, Worker->ThreadId)) {
+            if (!Context->Callback(Context->Context, &State->TimeNow, State->ThreadId)) {
                 *EC = Next; // Remove Context from the list.
                 continue;
             } else if (Context->Ready) {
@@ -271,9 +271,9 @@ CxPlatRunExecutionContexts(
 #endif
 
 //
-// The number of iterations to run before yielding our thread to the scheduler.
+// The time (in microseconds) before yielding our thread to the scheduler.
 //
-#define CXPLAT_WORKER_IDLE_WORK_THRESHOLD_COUNT 10
+#define CXPLAT_WORKER_IDLE_WORK_THRESHOLD_US (20)
 
 CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
 {
@@ -285,46 +285,46 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         "[ lib][%p] Worker start",
         Worker);
 
-    Worker->ThreadId = CxPlatCurThreadID();
+    CXPLAT_EC_STATE State;
+    State.ThreadId = CxPlatCurThreadID();
+    State.LastWorkTime = CxPlatTimeUs64();
 
-    uint32_t NoWorkCount = 0;
     while (Worker->Running) {
 
-        uint32_t WaitTime = UINT32_MAX;
-        ++NoWorkCount;
+        State.WaitTime = UINT32_MAX;
+        State.TimeNow = CxPlatTimeUs64();
 
 #ifdef QUIC_USE_EXECUTION_CONTEXTS
-        uint64_t TimeNow = CxPlatTimeUs64();
-        if (CxPlatRunExecutionContexts(Worker, &TimeNow)) {
-            NoWorkCount = 0;
+        if (CxPlatRunExecutionContexts(Worker, &State.TimeNow)) {
+            State.LastWorkTime = State.TimeNow;
         }
         if (Worker->ECsReady) {
-            WaitTime = 0;
+            State.WaitTime = 0;
         } else if (Worker->ECsReadyTime != UINT64_MAX) {
-            uint64_t Diff = Worker->ECsReadyTime - TimeNow;
+            uint64_t Diff = Worker->ECsReadyTime - State.TimeNow;
             Diff = US_TO_MS(Diff);
             if (Diff == 0) {
-                WaitTime = 1;
+                State.WaitTime = 1;
             } else if (Diff < UINT32_MAX) {
-                WaitTime = (uint32_t)Diff;
+                State.WaitTime = (uint32_t)Diff;
             } else {
-                WaitTime = UINT32_MAX-1;
+                State.WaitTime = UINT32_MAX-1;
             }
         }
 #endif
 
         if (Worker->DatapathEC) {
-            if (CxPlatDataPathRunEC(&Worker->DatapathEC, Worker->ThreadId, WaitTime)) {
-                NoWorkCount = 0;
+            if (CxPlatDataPathRunEC(&Worker->DatapathEC, &State)) {
+                State.LastWorkTime = State.TimeNow;
             }
-        } else if (WaitTime != 0) {
-            CxPlatEventWaitWithTimeout(Worker->WakeEvent, WaitTime);
-            NoWorkCount = 0;
+        } else if (State.WaitTime != 0) {
+            CxPlatEventWaitWithTimeout(Worker->WakeEvent, State.WaitTime);
+            State.LastWorkTime = State.TimeNow;
         }
 
-        if (NoWorkCount > CXPLAT_WORKER_IDLE_WORK_THRESHOLD_COUNT) {
+        if (CxPlatTimeDiff64(State.LastWorkTime, State.TimeNow) > CXPLAT_WORKER_IDLE_WORK_THRESHOLD_US) {
             CxPlatSchedulerYield();
-            NoWorkCount = 0;
+            State.LastWorkTime = State.TimeNow;
         }
     }
 

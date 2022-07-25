@@ -476,10 +476,9 @@ MsQuicLibraryUninitialize(
     if (MsQuicLib.Datapath != NULL) {
         CxPlatDataPathUninitialize(MsQuicLib.Datapath);
         MsQuicLib.Datapath = NULL;
-        if (MsQuicLib.DataPathProcList != NULL) {
-            CXPLAT_FREE(MsQuicLib.DataPathProcList, QUIC_POOL_RAW_DATAPATH_PROCS);
-            MsQuicLib.DataPathProcList = NULL;
-            MsQuicLib.DataPathProcListLength = 0;
+        if (MsQuicLib.DatapathConfig != NULL) {
+            CXPLAT_FREE(MsQuicLib.DatapathConfig, QUIC_POOL_RAW_DATAPATH_PROCS);
+            MsQuicLib.DatapathConfig = NULL;
         }
     }
 
@@ -893,72 +892,67 @@ QuicLibrarySetGlobalParam(
 
         break;
 
-    case QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS: {
+    case QUIC_PARAM_GLOBAL_DATAPATH_CONFIG: {
         if (BufferLength == 0) {
-            if (MsQuicLib.DataPathProcList != NULL) {
-                CXPLAT_FREE(MsQuicLib.DataPathProcList, QUIC_POOL_RAW_DATAPATH_PROCS);
-                MsQuicLib.DataPathProcList = NULL;
-                MsQuicLib.DataPathProcListLength = 0;
+            if (MsQuicLib.DatapathConfig != NULL) {
+                CXPLAT_FREE(MsQuicLib.DatapathConfig, QUIC_POOL_RAW_DATAPATH_PROCS);
+                MsQuicLib.DatapathConfig = NULL;
             }
             Status = QUIC_STATUS_SUCCESS;
             break;
         }
 
-        if (Buffer == NULL || BufferLength < sizeof(uint16_t) || BufferLength % sizeof(uint16_t) != 0) {
+        if (Buffer == NULL || BufferLength < QUIC_DATAPATH_CONFIG_MIN_SIZE) {
             Status = QUIC_STATUS_INVALID_PARAMETER;
             break;
+        }
+
+        QUIC_DATAPATH_CONFIG* Config = (QUIC_DATAPATH_CONFIG*)Buffer;
+
+        if (BufferLength < QUIC_DATAPATH_CONFIG_MIN_SIZE + sizeof(uint16_t) * Config->ProcessorCount) {
+            Status = QUIC_STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        for (uint32_t i = 0; i < Config->ProcessorCount; ++i) {
+            if (Config->ProcessorList[i] >= CxPlatProcActiveCount()) {
+                Status = QUIC_STATUS_INVALID_PARAMETER;
+                break;
+            }
         }
 
         if (MsQuicLib.Datapath != NULL) {
             QuicTraceEvent(
                 LibraryError,
                 "[ lib] ERROR, %s.",
-                "Tried to change raw datapath procs after datapath initialization");
+                "Tried to change datapath config after datapath initialization");
             Status = QUIC_STATUS_INVALID_STATE;
             break;
         }
 
-        uint32_t DataPathProcListLength = BufferLength / sizeof(uint16_t);
-        uint16_t* Cpus = (uint16_t*)Buffer;
-        for (uint32_t i = 0; i < DataPathProcListLength; ++i) {
-            if (*(Cpus + i) >= CxPlatProcActiveCount()) {
-                Status = QUIC_STATUS_INVALID_PARAMETER;
-                break;
-            }
-        }
-
-        if (Status == QUIC_STATUS_INVALID_PARAMETER) {
-            QuicTraceEvent(
-                LibraryError,
-                "[ lib] ERROR, %s.",
-                "Tried to set invalid raw datapath procs");
-            break;
-        }
-
-        uint16_t* DataPathProcList = CXPLAT_ALLOC_NONPAGED(BufferLength, QUIC_POOL_RAW_DATAPATH_PROCS);
-        if (DataPathProcList == NULL) {
+        QUIC_DATAPATH_CONFIG* NewConfig =
+            CXPLAT_ALLOC_NONPAGED(BufferLength, QUIC_POOL_RAW_DATAPATH_PROCS);
+        if (NewConfig == NULL) {
             QuicTraceEvent(
                 AllocFailure,
                 "Allocation of '%s' failed. (%llu bytes)",
-                "Raw datapath procs",
+                "Datapath config",
                 BufferLength);
             Status = QUIC_STATUS_OUT_OF_MEMORY;
             break;
         }
 
-        if (MsQuicLib.DataPathProcList != NULL) {
-            CXPLAT_FREE(MsQuicLib.DataPathProcList, QUIC_POOL_RAW_DATAPATH_PROCS);
-            MsQuicLib.DataPathProcList = NULL;
-            MsQuicLib.DataPathProcListLength = 0;
+        if (MsQuicLib.DatapathConfig != NULL) {
+            CXPLAT_FREE(MsQuicLib.DatapathConfig, QUIC_POOL_RAW_DATAPATH_PROCS);
+            MsQuicLib.DatapathConfig = NULL;
         }
 
-        CxPlatCopyMemory(DataPathProcList, Buffer, BufferLength);
-        MsQuicLib.DataPathProcList = DataPathProcList;
-        MsQuicLib.DataPathProcListLength = DataPathProcListLength;
+        CxPlatCopyMemory(NewConfig, Config, BufferLength);
+        MsQuicLib.DatapathConfig = NewConfig;
 
         QuicTraceLogInfo(
-            LibraryDataPathProcsSet,
-            "[ lib] Setting datapath procs");
+            LibraryDataPathConfigSet,
+            "[ lib] Setting datapath config");
 
         Status = QUIC_STATUS_SUCCESS;
         break;
@@ -1192,14 +1186,19 @@ QuicLibraryGetGlobalParam(
         Status = QUIC_STATUS_SUCCESS;
         break;
 
-    case QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS:
-        if (*BufferLength == 0 && MsQuicLib.DataPathProcListLength == 0) {
+    case QUIC_PARAM_GLOBAL_DATAPATH_CONFIG: {
+        if (MsQuicLib.DatapathConfig == NULL) {
+            *BufferLength = 0;
             Status = QUIC_STATUS_SUCCESS;
             break;
         }
 
-        if (*BufferLength < sizeof(uint16_t) * MsQuicLib.DataPathProcListLength) {
-            *BufferLength = sizeof(uint16_t) * MsQuicLib.DataPathProcListLength;
+        uint32_t ConfigLength =
+            QUIC_DATAPATH_CONFIG_MIN_SIZE +
+            sizeof(uint16_t) * MsQuicLib.DatapathConfig->ProcessorCount;
+
+        if (*BufferLength < ConfigLength) {
+            *BufferLength = ConfigLength;
             Status = QUIC_STATUS_BUFFER_TOO_SMALL;
             break;
         }
@@ -1209,12 +1208,12 @@ QuicLibraryGetGlobalParam(
             break;
         }
 
-        *BufferLength = sizeof(uint16_t) * MsQuicLib.DataPathProcListLength;
-        if (MsQuicLib.DataPathProcList != NULL) {
-            CxPlatCopyMemory(Buffer, MsQuicLib.DataPathProcList, *BufferLength);
-        }
+        *BufferLength = ConfigLength;
+        CxPlatCopyMemory(Buffer, MsQuicLib.DatapathConfig, ConfigLength);
+
         Status = QUIC_STATUS_SUCCESS;
         break;
+    }
 
     case QUIC_PARAM_GLOBAL_TLS_PROVIDER:
 

@@ -192,7 +192,7 @@ struct GlobalSettingScope {
                 &BufferLength,
                 nullptr);
         TEST_TRUE(Status == QUIC_STATUS_BUFFER_TOO_SMALL ||
-            (Parameter == QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS && Status == QUIC_STATUS_SUCCESS));
+            (Parameter == QUIC_PARAM_GLOBAL_DATAPATH_CONFIG && Status == QUIC_STATUS_SUCCESS));
 
         OriginalValue = CXPLAT_ALLOC_NONPAGED(BufferLength, QUIC_POOL_TEST);
         if (OriginalValue == nullptr) {

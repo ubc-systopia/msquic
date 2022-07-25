@@ -752,7 +752,7 @@ CxPlatDataPathInitialize(
     _In_ uint32_t ClientRecvContextLength,
     _In_opt_ const CXPLAT_UDP_DATAPATH_CALLBACKS* UdpCallbacks,
     _In_opt_ const CXPLAT_TCP_DATAPATH_CALLBACKS* TcpCallbacks,
-    _In_opt_ CXPLAT_DATAPATH_CONFIG* Config,
+    _In_opt_ QUIC_DATAPATH_CONFIG* Config,
     _Out_ CXPLAT_DATAPATH** NewDataPath
     )
 {
@@ -4091,8 +4091,7 @@ CxPlatDataPathWake(
 BOOLEAN // Did work?
 CxPlatDataPathRunEC(
     _In_ void** Context,
-    _In_ CXPLAT_THREAD_ID CurThreadId,
-    _In_ uint32_t WaitTime
+    _In_ CXPLAT_EC_STATE* State
     )
 {
     CXPLAT_DATAPATH_PROC** EcProcContext = (CXPLAT_DATAPATH_PROC**)Context;
@@ -4102,8 +4101,8 @@ CxPlatDataPathRunEC(
     CXPLAT_SOCKET_PROC* SocketProc;
     LPOVERLAPPED Overlapped;
 
-    if (DatapathProc->ThreadId != CurThreadId) {
-        DatapathProc->ThreadId = CurThreadId;
+    if (DatapathProc->ThreadId != State->ThreadId) {
+        DatapathProc->ThreadId = State->ThreadId;
     }
 
     BOOL Result =
@@ -4112,7 +4111,7 @@ CxPlatDataPathRunEC(
             &NumberOfBytesTransferred,
             (PULONG_PTR)&SocketProc,
             &Overlapped,
-            WaitTime);
+            State->WaitTime);
 
     if (DatapathProc->Datapath->Shutdown) {
         *Context = NULL;

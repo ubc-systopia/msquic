@@ -182,6 +182,13 @@ namespace Microsoft.Quic
         CANCELED,
     }
 
+    [System.Flags]
+    internal enum QUIC_DATAPATH_CONFIG_FLAGS
+    {
+        NONE = 0x0000,
+        SHARED_THREADS = 0x0001,
+    }
+
     internal unsafe partial struct QUIC_REGISTRATION_CONFIG
     {
         [NativeTypeName("const char *")]
@@ -1722,6 +1729,20 @@ namespace Microsoft.Quic
         internal ulong StreamBlockedByAppUs;
     }
 
+    internal unsafe partial struct QUIC_DATAPATH_CONFIG
+    {
+        internal QUIC_DATAPATH_CONFIG_FLAGS Flags;
+
+        [NativeTypeName("uint32_t")]
+        internal uint SleepTimeoutUs;
+
+        [NativeTypeName("uint32_t")]
+        internal uint ProcessorCount;
+
+        [NativeTypeName("uint16_t [1]")]
+        internal fixed ushort ProcessorList[1];
+    }
+
     internal unsafe partial struct QUIC_SCHANNEL_CREDENTIAL_ATTRIBUTE_W
     {
         [NativeTypeName("unsigned long")]
@@ -2605,6 +2626,9 @@ namespace Microsoft.Quic
         [NativeTypeName("#define QUIC_TLS_SECRETS_MAX_SECRET_LEN 64")]
         internal const uint QUIC_TLS_SECRETS_MAX_SECRET_LEN = 64;
 
+        [NativeTypeName("#define QUIC_DATAPATH_CONFIG_MIN_SIZE FIELD_OFFSET(QUIC_DATAPATH_CONFIG, ProcessorList)")]
+        internal static readonly int QUIC_DATAPATH_CONFIG_MIN_SIZE = ((int)(Marshal.OffsetOf<QUIC_DATAPATH_CONFIG>("ProcessorList")));
+
         [NativeTypeName("#define QUIC_PARAM_PREFIX_GLOBAL 0x01000000")]
         internal const uint QUIC_PARAM_PREFIX_GLOBAL = 0x01000000;
 
@@ -2656,8 +2680,8 @@ namespace Microsoft.Quic
         [NativeTypeName("#define QUIC_PARAM_GLOBAL_LIBRARY_GIT_HASH 0x01000008")]
         internal const uint QUIC_PARAM_GLOBAL_LIBRARY_GIT_HASH = 0x01000008;
 
-        [NativeTypeName("#define QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS 0x01000009")]
-        internal const uint QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS = 0x01000009;
+        [NativeTypeName("#define QUIC_PARAM_GLOBAL_DATAPATH_CONFIG 0x01000009")]
+        internal const uint QUIC_PARAM_GLOBAL_DATAPATH_CONFIG = 0x01000009;
 
         [NativeTypeName("#define QUIC_PARAM_GLOBAL_TLS_PROVIDER 0x0100000A")]
         internal const uint QUIC_PARAM_GLOBAL_TLS_PROVIDER = 0x0100000A;

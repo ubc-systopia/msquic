@@ -625,7 +625,7 @@ CxPlatDataPathInitialize(
     _In_ uint32_t ClientRecvContextLength,
     _In_opt_ const CXPLAT_UDP_DATAPATH_CALLBACKS* UdpCallbacks,
     _In_opt_ const CXPLAT_TCP_DATAPATH_CALLBACKS* TcpCallbacks,
-    _In_opt_ CXPLAT_DATAPATH_CONFIG* Config,
+    _In_opt_ QUIC_DATAPATH_CONFIG* Config,
     _Out_ CXPLAT_DATAPATH** NewDataPath
     )
 {
@@ -2736,8 +2736,7 @@ CxPlatDataPathWake(
 BOOLEAN // Did work?
 CxPlatDataPathRunEC(
     _In_ void** Context,
-    _In_ CXPLAT_THREAD_ID CurThreadId,
-    _In_ uint32_t WaitTime
+    _In_ CXPLAT_EC_STATE* State
     )
 {
     CXPLAT_DATAPATH_PROC_CONTEXT** EcProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT**)Context;
@@ -2747,7 +2746,7 @@ CxPlatDataPathRunEC(
     const size_t EpollEventCtMax = 16; // TODO: Experiment.
     struct epoll_event EpollEvents[EpollEventCtMax];
 
-    ProcContext->ThreadId = CurThreadId;
+    ProcContext->ThreadId = State->ThreadId;
 
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(
@@ -2755,7 +2754,7 @@ CxPlatDataPathRunEC(
                 ProcContext->EpollFd,
                 EpollEvents,
                 EpollEventCtMax,
-                WaitTime == UINT32_MAX ? -1 : (int)WaitTime)); // TODO - Handle wrap around?
+                State->WaitTime == UINT32_MAX ? -1 : (int)State->WaitTime)); // TODO - Handle wrap around?
 
     if (ProcContext->Datapath->Shutdown) {
         *Context = NULL;

@@ -16,10 +16,6 @@ Abstract:
 #include "HpsClient.h"
 #include "Tcp.h"
 
-#ifndef _KERNEL_MODE
-#include <vector>
-#endif
-
 #ifdef QUIC_CLOG
 #include "SecNetPerfMain.cpp.clog.h"
 #endif
@@ -246,33 +242,33 @@ QuicMainStart(
         return Status;
     }
 
-#ifndef _KERNEL_MODE
     const char* CpuStr;
     if ((CpuStr = GetValue(argc, argv, "cpu")) != nullptr) {
-        std::vector<uint16_t> ProcList;
+        uint8_t RawConfig[QUIC_DATAPATH_CONFIG_MIN_SIZE + 256 * sizeof(uint16_t)] = {0};
+        QUIC_DATAPATH_CONFIG* Config = (QUIC_DATAPATH_CONFIG*)RawConfig;
         if (strtol(CpuStr, nullptr, 10) == -1) {
-            for (uint16_t i = 0; i < CxPlatProcActiveCount(); ++i) {
-                ProcList.push_back(i);
+            for (uint16_t i = 0; i < CxPlatProcActiveCount() && Config->ProcessorCount < 256; ++i) {
+                Config->ProcessorList[Config->ProcessorCount++] = i;
             }
         } else {
             do {
                 if (*CpuStr == ',') CpuStr++;
-                ProcList.push_back((uint16_t)strtoul(CpuStr, (char**)&CpuStr, 10));
-            } while (*CpuStr);
+                Config->ProcessorList[Config->ProcessorCount++] =
+                    (uint16_t)strtoul(CpuStr, (char**)&CpuStr, 10);
+            } while (*CpuStr && Config->ProcessorCount < 256);
         }
 
         if (QUIC_FAILED(
             Status =
             MsQuic->SetParam(
                 nullptr,
-                QUIC_PARAM_GLOBAL_DATAPATH_PROCESSORS,
-                (uint32_t)ProcList.size() * sizeof(uint16_t),
-                ProcList.data()))) {
+                QUIC_PARAM_GLOBAL_DATAPATH_CONFIG,
+                (uint32_t)QUIC_DATAPATH_CONFIG_MIN_SIZE + Config->ProcessorCount * sizeof(uint16_t),
+                Config))) {
             WriteOutput("MsQuic Failed To Set DataPath Procs %d\n", Status);
             return Status;
         }
     }
-#endif // _KERNEL_MODE
 
     if (ServerMode) {
         TestToRun = new(std::nothrow) PerfServer(SelfSignedCredConfig);

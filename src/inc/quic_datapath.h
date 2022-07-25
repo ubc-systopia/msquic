@@ -122,6 +122,11 @@ PacketSizeFromUdpPayloadSize(
 typedef struct CXPLAT_DATAPATH CXPLAT_DATAPATH;
 
 //
+// Configuration for the datapath.
+//
+typedef struct QUIC_DATAPATH_CONFIG QUIC_DATAPATH_CONFIG;
+
+//
 // Represents a UDP or TCP abstraction.
 //
 typedef struct CXPLAT_SOCKET CXPLAT_SOCKET;
@@ -347,11 +352,6 @@ void
 
 typedef CXPLAT_DATAPATH_SEND_COMPLETE *CXPLAT_DATAPATH_SEND_COMPLETE_HANDLER;
 
-typedef struct CXPLAT_DATAPATH_CONFIG {
-    const uint16_t* DataPathProcList; // Processor index candidates
-    uint32_t DataPathProcListLength;
-} CXPLAT_DATAPATH_CONFIG;
-
 //
 // Opens a new handle to the QUIC datapath.
 //
@@ -361,7 +361,7 @@ CxPlatDataPathInitialize(
     _In_ uint32_t ClientRecvContextLength,
     _In_opt_ const CXPLAT_UDP_DATAPATH_CALLBACKS* UdpCallbacks,
     _In_opt_ const CXPLAT_TCP_DATAPATH_CALLBACKS* TcpCallbacks,
-    _In_opt_ CXPLAT_DATAPATH_CONFIG* Config,
+    _In_opt_ QUIC_DATAPATH_CONFIG* Config,
     _Out_ CXPLAT_DATAPATH** NewDatapath
     );
 

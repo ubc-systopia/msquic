@@ -192,15 +192,15 @@ tracepoint(CLOG_LIBRARY_C, LibrarySetSettings );\
 
 
 /*----------------------------------------------------------
-// Decoder Ring for LibraryDataPathProcsSet
-// [ lib] Setting datapath procs
+// Decoder Ring for LibraryDataPathConfigSet
+// [ lib] Setting datapath config
 // QuicTraceLogInfo(
-            LibraryDataPathProcsSet,
-            "[ lib] Setting datapath procs");
+            LibraryDataPathConfigSet,
+            "[ lib] Setting datapath config");
 ----------------------------------------------------------*/
-#ifndef _clog_2_ARGS_TRACE_LibraryDataPathProcsSet
-#define _clog_2_ARGS_TRACE_LibraryDataPathProcsSet(uniqueId, encoded_arg_string)\
-tracepoint(CLOG_LIBRARY_C, LibraryDataPathProcsSet );\
+#ifndef _clog_2_ARGS_TRACE_LibraryDataPathConfigSet
+#define _clog_2_ARGS_TRACE_LibraryDataPathConfigSet(uniqueId, encoded_arg_string)\
+tracepoint(CLOG_LIBRARY_C, LibraryDataPathConfigSet );\
 
 #endif
 
@@ -456,8 +456,8 @@ tracepoint(CLOG_LIBRARY_C, LibraryRelease );\
 // QuicTraceEvent(
                 LibraryError,
                 "[ lib] ERROR, %s.",
-                "Tried to change raw datapath procs after datapath initialization");
-// arg2 = arg2 = "Tried to change raw datapath procs after datapath initialization" = arg2
+                "Tried to change datapath config after datapath initialization");
+// arg2 = arg2 = "Tried to change datapath config after datapath initialization" = arg2
 ----------------------------------------------------------*/
 #ifndef _clog_3_ARGS_TRACE_LibraryError
 #define _clog_3_ARGS_TRACE_LibraryError(uniqueId, encoded_arg_string, arg2)\

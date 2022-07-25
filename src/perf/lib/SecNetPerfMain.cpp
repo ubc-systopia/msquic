@@ -91,9 +91,10 @@ PrintHelp(
         "  -cibir:<hex_bytes>          A CIBIR well-known idenfitier.\n"
         "\n"
         "Client: secnetperf -TestName:<Throughput|RPS|HPS> [options]\n"
-#ifndef _KERNEL_MODE
         "Both:\n"
         "  -cpu:<cpu_index>            Specify the processor(s) for the datapath to use.\n"
+        "  -sleepthresh:<time>         Specify idle sleep threshold (in microseconds) for threads to use.\n"
+#ifndef _KERNEL_MODE
         "  -cipher:<value>             Decimal value of 1 or more QUIC_ALLOWED_CIPHER_SUITE_FLAGS.\n"
 #endif // _KERNEL_MODE
         "\n"
@@ -242,10 +243,14 @@ QuicMainStart(
         return Status;
     }
 
+    uint8_t RawConfig[QUIC_DATAPATH_CONFIG_MIN_SIZE + 256 * sizeof(uint16_t)] = {0};
+    QUIC_DATAPATH_CONFIG* Config = (QUIC_DATAPATH_CONFIG*)RawConfig;
+    Config->SleepTimeoutUs = UINT32_MAX; // Default to no sleep.
+    bool SetConfig = false;
+
     const char* CpuStr;
     if ((CpuStr = GetValue(argc, argv, "cpu")) != nullptr) {
-        uint8_t RawConfig[QUIC_DATAPATH_CONFIG_MIN_SIZE + 256 * sizeof(uint16_t)] = {0};
-        QUIC_DATAPATH_CONFIG* Config = (QUIC_DATAPATH_CONFIG*)RawConfig;
+        SetConfig = true;
         if (strtol(CpuStr, nullptr, 10) == -1) {
             for (uint16_t i = 0; i < CxPlatProcActiveCount() && Config->ProcessorCount < 256; ++i) {
                 Config->ProcessorList[Config->ProcessorCount++] = i;
@@ -257,17 +262,22 @@ QuicMainStart(
                     (uint16_t)strtoul(CpuStr, (char**)&CpuStr, 10);
             } while (*CpuStr && Config->ProcessorCount < 256);
         }
+    }
 
-        if (QUIC_FAILED(
-            Status =
-            MsQuic->SetParam(
-                nullptr,
-                QUIC_PARAM_GLOBAL_DATAPATH_CONFIG,
-                (uint32_t)QUIC_DATAPATH_CONFIG_MIN_SIZE + Config->ProcessorCount * sizeof(uint16_t),
-                Config))) {
-            WriteOutput("MsQuic Failed To Set DataPath Procs %d\n", Status);
-            return Status;
-        }
+    if (TryGetValue(argc, argv, "sleepthresh", &Config->SleepTimeoutUs)) {
+        SetConfig = true;
+    }
+
+    if (SetConfig &&
+        QUIC_FAILED(
+        Status =
+        MsQuic->SetParam(
+            nullptr,
+            QUIC_PARAM_GLOBAL_DATAPATH_CONFIG,
+            (uint32_t)QUIC_DATAPATH_CONFIG_MIN_SIZE + Config->ProcessorCount * sizeof(uint16_t),
+            Config))) {
+        WriteOutput("MsQuic Failed To Set DataPath Procs %d\n", Status);
+        return Status;
     }
 
     if (ServerMode) {

@@ -295,7 +295,7 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         State.TimeNow = CxPlatTimeUs64();
 
 #ifdef QUIC_USE_EXECUTION_CONTEXTS
-        if (CxPlatRunExecutionContexts(Worker, &State.TimeNow)) {
+        if (CxPlatRunExecutionContexts(Worker, &State)) {
             State.LastWorkTime = State.TimeNow;
         }
         if (Worker->ECsReady) {

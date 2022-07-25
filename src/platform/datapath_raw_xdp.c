@@ -1625,7 +1625,11 @@ CxPlatDataPathRunEC(
         // No work, only one queue and we should wait.
         //
         XSK_NOTIFY_RESULT_FLAGS OutFlags;
-        (void)XskNotifySocket(Worker->Queues->RxXsk, XSK_NOTIFY_FLAG_WAIT_RX, WaitTime, &OutFlags);
+        (void)XskNotifySocket(
+            Worker->Queues->RxXsk,
+            XSK_NOTIFY_FLAG_WAIT_RX,
+            State->WaitTime,
+            &OutFlags);
         DidWork = TRUE;
     }
 

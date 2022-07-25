@@ -186,7 +186,6 @@ namespace Microsoft.Quic
     internal enum QUIC_DATAPATH_CONFIG_FLAGS
     {
         NONE = 0x0000,
-        SHARED_THREADS = 0x0001,
     }
 
     internal unsafe partial struct QUIC_REGISTRATION_CONFIG
@@ -2626,8 +2625,8 @@ namespace Microsoft.Quic
         [NativeTypeName("#define QUIC_TLS_SECRETS_MAX_SECRET_LEN 64")]
         internal const uint QUIC_TLS_SECRETS_MAX_SECRET_LEN = 64;
 
-        [NativeTypeName("#define QUIC_DATAPATH_CONFIG_MIN_SIZE FIELD_OFFSET(QUIC_DATAPATH_CONFIG, ProcessorList)")]
-        internal static readonly int QUIC_DATAPATH_CONFIG_MIN_SIZE = ((int)(Marshal.OffsetOf<QUIC_DATAPATH_CONFIG>("ProcessorList")));
+        [NativeTypeName("#define QUIC_DATAPATH_CONFIG_MIN_SIZE (uint32_t)FIELD_OFFSET(QUIC_DATAPATH_CONFIG, ProcessorList)")]
+        internal static readonly uint QUIC_DATAPATH_CONFIG_MIN_SIZE = unchecked((uint)((int)(Marshal.OffsetOf<QUIC_DATAPATH_CONFIG>("ProcessorList"))));
 
         [NativeTypeName("#define QUIC_PARAM_PREFIX_GLOBAL 0x01000000")]
         internal const uint QUIC_PARAM_PREFIX_GLOBAL = 0x01000000;

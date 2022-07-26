@@ -217,7 +217,7 @@ CxPlatWakeExecutionContext(
     CxPlatWorkerWake((CXPLAT_WORKER*)Context->CxPlatContext);
 }
 
-BOOLEAN // Did work?
+void
 CxPlatRunExecutionContexts(
     _In_ CXPLAT_WORKER* Worker,
     _Inout_ CXPLAT_EC_STATE* State
@@ -265,7 +265,9 @@ CxPlatRunExecutionContexts(
         EC = &Context->Entry.Next;
     }
 
-    return DidWork;
+    if (DidWork) {
+        State->LastWorkTime = State->TimeNow;
+    }
 }
 
 #endif
@@ -295,9 +297,7 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         State.TimeNow = CxPlatTimeUs64();
 
 #ifdef QUIC_USE_EXECUTION_CONTEXTS
-        if (CxPlatRunExecutionContexts(Worker, &State)) {
-            State.LastWorkTime = State.TimeNow;
-        }
+        CxPlatRunExecutionContexts(Worker, &State);
         if (Worker->ECsReady) {
             State.WaitTime = 0;
         } else if (Worker->ECsReadyTime != UINT64_MAX) {

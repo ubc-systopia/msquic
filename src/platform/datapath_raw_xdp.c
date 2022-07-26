@@ -1617,7 +1617,7 @@ CxPlatDataPathRunEC(
     }
 
     if (!DidWork &&
-        State->WaitTime != UINT32_MAX &&
+        State->WaitTime != 0 &&
         Worker->Queues &&
         Worker->Queues->Next == NULL &&
         CxPlatTimeDiff64(State->LastWorkTime, State->TimeNow) > Xdp->SleepTimeoutUs) {

@@ -436,6 +436,9 @@ function CMake-Generate {
         $Arguments += " -DANDROID_NDK=""$NDK"""
         $Arguments += " -DCMAKE_TOOLCHAIN_FILE=""$NdkToolchainFile"""
     }
+    if ($Platform -eq "linux" -and $Arch -eq "arm64") {
+        $Arguments += " -DCMAKE_TOOLCHAIN_FILE=""cmake/toolchains/aarch64-linux.cmake"""
+    }
     $Arguments += " -DQUIC_LIBRARY_NAME=$LibraryName"
     $Arguments += " ../../.."
 

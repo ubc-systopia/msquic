@@ -80,6 +80,9 @@ param (
     [switch]$InstallXdpSdk,
 
     [Parameter(Mandatory = $false)]
+    [switch]$InstallArm64Toolchain,
+
+    [Parameter(Mandatory = $false)]
     [switch]$InstallXdpDriver,
 
     [Parameter(Mandatory = $false)]
@@ -525,6 +528,11 @@ if ($IsLinux) {
         sudo apt-get install -y build-essential
         sudo apt-get install -y liblttng-ust-dev
         sudo apt-get install -y libssl-dev
+        if ($InstallArm64Toolchain) {
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+            sudo apt-get install -y binutils-aarch64-linux-gnu
+            sudo apt-get install -y g++-aarch64-linux-gnu
+        }
         # only used for the codecheck CI run:
         sudo apt-get install -y cppcheck clang-tidy
         # used for packaging

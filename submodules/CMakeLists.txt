@@ -236,6 +236,10 @@ else()
         set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/Configure
             ${OPENSSL_BUILD_TYPE}
             -D__ANDROID_API__=29)
+    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+            set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/Configure
+            linux-aarch64 -DL_ENDIAN
+                --cross-compile-prefix=${GNU_MACHINE}${FLOAT_ABI_SUFFIX}-)
     else()
         set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/config
             CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER})

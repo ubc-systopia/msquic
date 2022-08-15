@@ -221,10 +221,12 @@ else()
             list(APPEND OPENSSL_CONFIG_FLAGS -latomic)
         else()
             if (CMAKE_TARGET_ARCHITECTURE STREQUAL arm64)
-                set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/Configure linux-aarch64)
+                set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/Configure linux-aarch64
+                --cross-compile-prefix=${GNU_MACHINE}${FLOAT_ABI_SUFFIX}-)
                 list(APPEND OPENSSL_CONFIG_FLAGS -latomic)
             elseif (CMAKE_TARGET_ARCHITECTURE STREQUAL arm)
-                set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/Configure linux-armv4)
+                set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/Configure linux-armv4
+                --cross-compile-prefix=${GNU_MACHINE}${FLOAT_ABI_SUFFIX}-)
                  list(APPEND OPENSSL_CONFIG_FLAGS -latomic)
             else()
                 set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/config

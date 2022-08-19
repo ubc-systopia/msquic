@@ -460,8 +460,22 @@ QuicLossDetectionOnPacketSent(
             &Connection->CongestionControl, SentPacket->PacketLength);
     }
 
+    uint64_t SendPostedBytes = Connection->SendBuffer.PostedBytes;
 
-    SentPacket->Flags.IsAppLimited = FALSE;
+    CXPLAT_LIST_ENTRY* Entry = Connection->Send.SendStreams.Flink;
+    QUIC_STREAM* Stream =
+        (Entry != &(Connection->Send.SendStreams)) ?
+          CXPLAT_CONTAINING_RECORD(Entry, QUIC_STREAM, SendLink) :
+          NULL;
+    
+    if (SendPostedBytes < Path->Mtu &&
+        QuicCongestionControlCanSend(&Connection->CongestionControl) &&
+        !QuicCryptoHasPendingCryptoFrame(&Connection->Crypto) &&
+        (Stream && QuicStreamAllowedByPeer(Stream)) && !QuicStreamCanSendNow(Stream, FALSE)) {
+        QuicCongestionControlSetAppLimited(&Connection->CongestionControl);
+    }
+
+    SentPacket->Flags.IsAppLimited = QuicCongestionControlIsAppLimited(&Connection->CongestionControl);
 
     LossDetection->TotalBytesSent += TempSentPacket->PacketLength;
 

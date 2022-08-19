@@ -128,6 +128,14 @@ typedef struct QUIC_CONGESTION_CONTROL {
         _In_ const struct QUIC_CONGESTION_CONTROL* Cc
         );
 
+    BOOLEAN (*QuicCongestionControlIsAppLimited)(
+        _In_ const struct QUIC_CONGESTION_CONTROL* Cc
+        );
+
+    void (*QuicCongestionControlSetAppLimited)(
+        _In_ struct QUIC_CONGESTION_CONTROL* Cc
+        );
+
     //
     // Algorithm specific state.
     //
@@ -305,4 +313,24 @@ QuicCongestionControlGetCongestionWindow(
     )
 {
     return Cc->QuicCongestionControlGetCongestionWindow(Cc);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+inline
+BOOLEAN
+QuicCongestionControlIsAppLimited(
+    _In_ struct QUIC_CONGESTION_CONTROL* Cc
+    )
+{
+    return Cc->QuicCongestionControlIsAppLimited(Cc);
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+inline
+void
+QuicCongestionControlSetAppLimited(
+    _In_ struct QUIC_CONGESTION_CONTROL* Cc
+    )
+{
+    Cc->QuicCongestionControlSetAppLimited(Cc);
 }

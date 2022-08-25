@@ -302,7 +302,7 @@ function Log($msg) {
 # Executes cmake with the given arguments.
 function CMake-Execute([String]$Arguments) {
     Log "cmake $($Arguments)"
-    $process = Start-Process cmake $Arguments -PassThru -NoNewWindow -WorkingDirectory $BuildDir
+    $process = Start-Process unbuffer cmake $Arguments -PassThru -NoNewWindow -WorkingDirectory $BuildDir
     $handle = $process.Handle # Magic work around. Don't remove this line.
     $process.WaitForExit();
 

@@ -508,6 +508,9 @@ if ($IsLinux) {
         Install-Clog2Text
     }
 
+    sudo apt-get update
+    sudo apt-get install -y unbuffer
+
     if ($ForBuild) {
         sudo apt-add-repository ppa:lttng/stable-2.12
         sudo apt-get update

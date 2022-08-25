@@ -509,7 +509,7 @@ if ($IsLinux) {
     }
 
     sudo apt-get update
-    sudo apt-get install -y unbuffer
+    sudo apt-get install -y expect
 
     if ($ForBuild) {
         sudo apt-add-repository ppa:lttng/stable-2.12

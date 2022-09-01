@@ -200,7 +200,7 @@
                         "4096": "-response:4096",
                         "16384": "-response:16384"
                     },
-                    "Default": "4096"
+                    "Default": "0"
                 }
             ],
             "AllowLoopback": false,

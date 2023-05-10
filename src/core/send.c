@@ -21,6 +21,7 @@ Abstract:
 --*/
 
 #include "precomp.h"
+#include "../inc/external_sync.h"
 #ifdef QUIC_CLOG
 #include "send.c.clog.h"
 #endif
@@ -1161,7 +1162,7 @@ QuicSendFlush(
     uint32_t PrevSendFlags = UINT32_MAX;        // N-1
     uint32_t PrevPrevSendFlags = UINT32_MAX;    // N-2
 #endif
-
+    pthread_rwlock_rdlock(&quicSendLock);
     do {
 
         if (Path->Allowance < QUIC_MIN_SEND_ALLOWANCE) {
@@ -1329,6 +1330,7 @@ QuicSendFlush(
 
     } while (Builder.SendData != NULL ||
         Builder.TotalCountDatagrams < QUIC_MAX_DATAGRAMS_PER_SEND);
+    pthread_rwlock_unlock(&quicSendLock);
 
     if (Builder.SendData != NULL) {
         //

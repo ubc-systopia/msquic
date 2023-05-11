@@ -1206,6 +1206,7 @@ struct MsQuicStream {
     MsQuicStreamCallback* Callback;
     void* Context;
     QUIC_STATUS InitStatus;
+    QUIC_UINT62 streamID;
 
     MsQuicStream(
         _In_ const MsQuicConnection& Connection,
@@ -1213,7 +1214,8 @@ struct MsQuicStream {
         _In_ MsQuicCleanUpMode CleanUpMode = CleanUpManual,
         _In_ MsQuicStreamCallback* Callback = NoOpCallback,
         _In_ void* Context = nullptr
-        ) noexcept : CleanUpMode(CleanUpMode), Callback(Callback), Context(Context) {
+        ) noexcept : CleanUpMode(CleanUpMode), Callback(Callback), Context(Context)
+        , streamID(0) {
         if (!Connection.IsValid()) {
             InitStatus = Connection.GetInitStatus();
             return;
@@ -1227,6 +1229,13 @@ struct MsQuicStream {
                     this,
                     &Handle))) {
             Handle = nullptr;
+        } else {
+          uint32_t Size = sizeof(streamID);
+          MsQuic->GetParam(
+              Handle,
+              QUIC_PARAM_STREAM_ID,
+              &Size,
+              &streamID);
         }
     }
 
@@ -1235,10 +1244,17 @@ struct MsQuicStream {
         _In_ MsQuicCleanUpMode CleanUpMode,
         _In_ MsQuicStreamCallback* Callback = NoOpCallback,
         _In_ void* Context = nullptr
-        ) noexcept : CleanUpMode(CleanUpMode), Callback(Callback), Context(Context) {
+        ) noexcept : CleanUpMode(CleanUpMode), Callback(Callback), Context(Context)
+        , streamID(0) {
         Handle = StreamHandle;
         MsQuic->SetCallbackHandler(Handle, (void*)MsQuicCallback, this);
         InitStatus = QUIC_STATUS_SUCCESS;
+        uint32_t Size = sizeof(streamID);
+        MsQuic->GetParam(
+            Handle,
+            QUIC_PARAM_STREAM_ID,
+            &Size,
+            &streamID);
     }
 
     ~MsQuicStream() noexcept {
@@ -1319,10 +1335,10 @@ struct MsQuicStream {
                 ID);
     }
 
-    QUIC_UINT62 ID() const noexcept {
-        QUIC_UINT62 ID;
-        GetID(&ID);
-        return ID;
+    inline QUIC_UINT62 ID() noexcept {
+        if(streamID == 0)
+            GetID(&streamID);
+        return streamID;
     }
 
     QUIC_STATUS

@@ -1215,7 +1215,7 @@ struct MsQuicStream {
         _In_ MsQuicStreamCallback* Callback = NoOpCallback,
         _In_ void* Context = nullptr
         ) noexcept : CleanUpMode(CleanUpMode), Callback(Callback), Context(Context)
-        , streamID(0) {
+        , streamID(QUIC_UINT62_MAX) {
         if (!Connection.IsValid()) {
             InitStatus = Connection.GetInitStatus();
             return;
@@ -1245,7 +1245,7 @@ struct MsQuicStream {
         _In_ MsQuicStreamCallback* Callback = NoOpCallback,
         _In_ void* Context = nullptr
         ) noexcept : CleanUpMode(CleanUpMode), Callback(Callback), Context(Context)
-        , streamID(0) {
+        , streamID(QUIC_UINT62_MAX) {
         Handle = StreamHandle;
         MsQuic->SetCallbackHandler(Handle, (void*)MsQuicCallback, this);
         InitStatus = QUIC_STATUS_SUCCESS;
@@ -1336,7 +1336,7 @@ struct MsQuicStream {
     }
 
     inline QUIC_UINT62 ID() noexcept {
-        if(streamID == 0)
+        if(streamID == QUIC_UINT62_MAX)
             GetID(&streamID);
         return streamID;
     }

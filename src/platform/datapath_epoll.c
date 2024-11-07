@@ -18,6 +18,7 @@ Environment:
 #include <inttypes.h>
 #include <linux/filter.h>
 #include <linux/in6.h>
+#include <linux/net_tstamp.h>
 #include <netinet/udp.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -1339,6 +1340,25 @@ CxPlatSocketContextInitialize(
 
     if (Binding->LocalAddress.Ipv6.sin6_family == AF_INET6) {
         Binding->LocalAddress.Ipv6.sin6_family = QUIC_ADDRESS_FAMILY_INET6;
+    }
+
+    int timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE;
+    Result =
+        setsockopt(
+            SocketContext->SocketFd,
+            SOL_SOCKET,
+            SO_TIMESTAMPING,
+            &timestamp_flags,
+            sizeof(timestamp_flags));
+    if (Result == SOCKET_ERROR) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "setsockopt(SO_TIMESTAMPING) failed");
+        goto Exit;
     }
 
 Exit:

@@ -16,6 +16,7 @@ Environment:
 #include "platform_internal.h"
 #include <arpa/inet.h>
 #include <inttypes.h>
+#include <linux/errqueue.h>
 #include <linux/filter.h>
 #include <linux/in6.h>
 #include <linux/net_tstamp.h>
@@ -425,6 +426,9 @@ typedef struct CXPLAT_DATAPATH {
     CXPLAT_DATAPATH_PROC_CONTEXT ProcContexts[];
 
 } CXPLAT_DATAPATH;
+
+void handleScmTimestamping(
+        _In_ struct scm_timestamping *ts);
 
 QUIC_STATUS
 CxPlatSocketSendInternal(
@@ -1580,6 +1584,20 @@ CxPlatSocketContextRecvComplete(
                 } else if (CMsg->cmsg_type == IP_TOS) {
                     RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                     FoundTOS = TRUE;
+                }
+            } else if (CMsg->cmsg_level == SOL_SOCKET) {
+                struct scm_timestamping *ts;
+                switch (CMsg->cmsg_type) {
+                    case SO_TIMESTAMPING:
+                        ts = (struct scm_timestamping *) CMSG_DATA(CMsg);
+                        handleScmTimestamping(ts);
+                        break;
+                    case SO_TIMESTAMPNS:
+                        ts = (struct scm_timestamping *) CMSG_DATA(CMsg);
+                        handleScmTimestamping(ts);
+                        break;
+                    default:
+                        break;
                 }
             }
         }
@@ -2814,4 +2832,12 @@ CxPlatDataPathRunEC(
     }
 
     return TRUE;
+}
+
+void handleScmTimestamping(
+        _In_ struct scm_timestamping *ts) {
+    for (size_t i = 0; i < sizeof(ts->ts) / sizeof(*ts->ts); i++) {
+        (void) ts->ts[i].tv_sec;
+        (void) ts->ts[i].tv_nsec;
+    }
 }

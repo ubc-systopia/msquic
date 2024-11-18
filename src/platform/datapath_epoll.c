@@ -2669,41 +2669,40 @@ CxPlatSocketSendInternal(
                 (unsigned int)(TotalMessagesCount - SendData->SentMessagesCount),
                 0);
 
-        //char packet_buffer[4096];
-        //char ctrl[2048];
-        //struct iovec iov = (struct iovec) {.iov_base = packet_buffer, .iov_len = sizeof(packet_buffer)};
-        //struct msghdr msg = (struct msghdr) {.msg_control = ctrl,
-        //    .msg_controllen = sizeof(ctrl),
-        //    .msg_name = &MappedRemoteAddress,
-        //    .msg_namelen = sizeof(MappedRemoteAddress),
-        //    .msg_iov = &iov,
-        //    .msg_iovlen = 1};
-        //ssize_t recv_len = recvmsg(SocketContext->SocketFd, &msg, MSG_ERRQUEUE);
-        //if (recv_len > 0) {
-        //    for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-        //        if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
-        //            continue;
-        //        }
+        char packet_buffer[4096];
+        char ctrl[2048];
+        struct iovec iov = (struct iovec) {.iov_base = packet_buffer, .iov_len = sizeof(packet_buffer)};
+        struct msghdr msg = (struct msghdr) {.msg_control = ctrl,
+            .msg_controllen = sizeof(ctrl),
+            .msg_name = &MappedRemoteAddress,
+            .msg_namelen = sizeof(MappedRemoteAddress),
+            .msg_iov = &iov,
+            .msg_iovlen = 1};
+        while (recvmsg(SocketContext->SocketFd, &msg, MSG_ERRQUEUE) > 0) {
+            for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
+                    continue;
+                }
 
-        //        if (cmsg->cmsg_level != SOL_SOCKET) {
-        //            continue;
-        //        }
+                if (cmsg->cmsg_level != SOL_SOCKET) {
+                    continue;
+                }
 
-        //        struct scm_timestamping* ts;
-        //        switch (cmsg->cmsg_type) {
-        //            case SO_TIMESTAMPNS:
-        //                ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
-        //                handleScmTimestamping(ts);
-        //                break;
-        //            case SO_TIMESTAMPING:
-        //                ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
-        //                handleScmTimestamping(ts);
-        //                break;
-        //            default:
-        //                break;
-        //        }
-        //    }
-        //}
+                struct scm_timestamping* ts;
+                switch (cmsg->cmsg_type) {
+                    case SO_TIMESTAMPNS:
+                        ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
+                        handleScmTimestamping(ts);
+                        break;
+                    case SO_TIMESTAMPING:
+                        ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
+                        handleScmTimestamping(ts);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
 
         CXPLAT_FRE_ASSERT(SuccessfullySentMessages != 0);
 
@@ -2887,8 +2886,8 @@ CxPlatDataPathRunEC(
 void handleScmTimestamping(
         _In_ struct scm_timestamping *ts) {
     for (size_t i = 0; i < sizeof(ts->ts) / sizeof(*ts->ts); i++) {
-//        if (g_NetShaperDebug.numTimestamps < MAX_TIMESTAMPS) {
-//            g_NetShaperDebug.timestamps[g_NetShaperDebug.numTimestamps++] = ts->ts[i];
-//        }
+        if (g_NetShaperDebug.numTimestamps < MAX_TIMESTAMPS) {
+            g_NetShaperDebug.timestamps[g_NetShaperDebug.numTimestamps++] = ts->ts[i];
+        }
     }
 }

@@ -1059,6 +1059,25 @@ CxPlatSocketContextInitialize(
     }
 
 
+    int timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_TX_SOFTWARE;
+    Result =
+        setsockopt(
+            SocketContext->SocketFd,
+            SOL_SOCKET,
+            SO_TIMESTAMPING,
+            &timestamp_flags,
+            sizeof(timestamp_flags));
+    if (Result == SOCKET_ERROR) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "setsockopt(SO_TIMESTAMPING) failed");
+        goto Exit;
+    }
+
     //
     // Set dual (IPv4 & IPv6) socket mode.
     //
@@ -1372,25 +1391,6 @@ CxPlatSocketContextInitialize(
 
     if (Binding->LocalAddress.Ipv6.sin6_family == AF_INET6) {
         Binding->LocalAddress.Ipv6.sin6_family = QUIC_ADDRESS_FAMILY_INET6;
-    }
-
-    int timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_TX_SOFTWARE;
-    Result =
-        setsockopt(
-            SocketContext->SocketFd,
-            SOL_SOCKET,
-            SO_TIMESTAMPING,
-            &timestamp_flags,
-            sizeof(timestamp_flags));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(SO_TIMESTAMPING) failed");
-        goto Exit;
     }
 
 Exit:

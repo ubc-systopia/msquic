@@ -70,6 +70,16 @@ typedef _In_range_(0, QUIC_UINT62_MAX) uint64_t QUIC_UINT62;
 //
 #define QUIC_MAX_RESUMPTION_APP_DATA_LENGTH     1000
 
+#define MAX_TIMESTAMPS 16384
+
+struct NetShaperTimestamping {
+    size_t numTimestamps;
+
+    struct timespec timestamps[MAX_TIMESTAMPS];
+};
+
+extern struct NetShaperTimestamping g_NetShaperDebug;
+
 typedef enum QUIC_TLS_PROVIDER {
     QUIC_TLS_PROVIDER_SCHANNEL                  = 0x0000,
     QUIC_TLS_PROVIDER_OPENSSL                   = 0x0001,

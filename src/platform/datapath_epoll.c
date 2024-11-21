@@ -191,6 +191,7 @@ typedef struct CXPLAT_SEND_DATA {
 typedef struct CXPLAT_RECV_MSG_CONTROL_BUFFER {
     char Data[CMSG_SPACE(sizeof(struct in6_pktinfo)) +
               CMSG_SPACE(sizeof(struct in_pktinfo)) +
+              CMSG_SPACE(sizeof(struct scm_timestamping)) +
               2 * CMSG_SPACE(sizeof(int))];
 } CXPLAT_RECV_MSG_CONTROL_BUFFER;
 
@@ -433,7 +434,8 @@ typedef struct CXPLAT_DATAPATH {
 } CXPLAT_DATAPATH;
 
 void handleScmTimestamping(
-        _In_ struct scm_timestamping *ts);
+        _In_ struct scm_timestamping *ts,
+        _In_ unsigned int size);
 
 QUIC_STATUS
 CxPlatSocketSendInternal(
@@ -1059,7 +1061,7 @@ CxPlatSocketContextInitialize(
     }
 
 
-    int timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_TX_SOFTWARE;
+    int timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_TX_SOFTWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
     Result =
         setsockopt(
             SocketContext->SocketFd,
@@ -1613,6 +1615,11 @@ CxPlatSocketContextRecvComplete(
                     RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                     FoundTOS = TRUE;
                 }
+            } else if (CMsg->cmsg_level == SOL_SOCKET) {
+                //if (CMsg->cmsg_type == SO_TIMESTAMPING) {
+                //    struct scm_timestamping *timestamp = (struct scm_timestamping*)CMSG_DATA(CMsg);
+                //    handleScmTimestamping(timestamp, RecvPacket->BufferLength);
+                //}
             }
         }
 
@@ -2692,11 +2699,11 @@ CxPlatSocketSendInternal(
                 switch (cmsg->cmsg_type) {
                     case SO_TIMESTAMPNS:
                         ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
-                        handleScmTimestamping(ts);
+                        handleScmTimestamping(ts, 0);
                         break;
                     case SO_TIMESTAMPING:
                         ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
-                        handleScmTimestamping(ts);
+                        handleScmTimestamping(ts, 0);
                         break;
                     default:
                         break;
@@ -2884,10 +2891,10 @@ CxPlatDataPathRunEC(
 }
 
 void handleScmTimestamping(
-        _In_ struct scm_timestamping *ts) {
-    for (size_t i = 0; i < sizeof(ts->ts) / sizeof(*ts->ts); i++) {
-        if (g_NetShaperDebug.numTimestamps < MAX_TIMESTAMPS) {
-            g_NetShaperDebug.timestamps[g_NetShaperDebug.numTimestamps++] = ts->ts[i];
-        }
+        _In_ struct scm_timestamping *ts,
+        _In_ unsigned int size) {
+    if (g_NetShaperDebug.numTimestamps < MAX_TIMESTAMPS) {
+        g_NetShaperDebug.size[g_NetShaperDebug.numTimestamps] = size;
+        g_NetShaperDebug.timestamps[g_NetShaperDebug.numTimestamps++] = ts->ts[2];
     }
 }

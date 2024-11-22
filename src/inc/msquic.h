@@ -76,8 +76,6 @@ struct NetShaperTimestamping {
     size_t numTimestamps;
 
     struct timespec timestamps[MAX_TIMESTAMPS];
-
-    unsigned int size[MAX_TIMESTAMPS];
 };
 
 extern struct NetShaperTimestamping g_NetShaperDebug;

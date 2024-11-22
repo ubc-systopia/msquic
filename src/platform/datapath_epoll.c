@@ -15,6 +15,7 @@ Environment:
 
 #include "platform_internal.h"
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <inttypes.h>
 #include <linux/errqueue.h>
 #include <linux/filter.h>
@@ -434,8 +435,11 @@ typedef struct CXPLAT_DATAPATH {
 } CXPLAT_DATAPATH;
 
 void handleScmTimestamping(
-        _In_ struct scm_timestamping *ts,
-        _In_ unsigned int size);
+        _In_ struct scm_timestamping *ts);
+
+BOOLEAN getLocalIfName(
+        _In_ const QUIC_ADDR *localAddress,
+        _Out_ char *ifName);
 
 QUIC_STATUS
 CxPlatSocketSendInternal(
@@ -1042,10 +1046,19 @@ CxPlatSocketContextInitialize(
     struct hwtstamp_config cfg;
     memset(&ifr, 0, sizeof(ifr));
     memset(&cfg, 0, sizeof(cfg));
-    strncpy(ifr.ifr_name, "enp1s0f0np0", sizeof(ifr.ifr_name));
+    if (!getLocalIfName(LocalAddress, ifr.ifr_name)) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "getLocalIfName failed");
+        goto Exit;
+    }
 
     cfg.tx_type = HWTSTAMP_TX_ON;
-    cfg.rx_filter = HWTSTAMP_FILTER_ALL;
+    cfg.rx_filter = HWTSTAMP_FILTER_NONE;
 
     ifr.ifr_data = (char *)&cfg;
 
@@ -1060,8 +1073,7 @@ CxPlatSocketContextInitialize(
         goto Exit;
     }
 
-
-    int timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_TX_SOFTWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
+    uint32_t timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
     Result =
         setsockopt(
             SocketContext->SocketFd,
@@ -1615,11 +1627,6 @@ CxPlatSocketContextRecvComplete(
                     RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                     FoundTOS = TRUE;
                 }
-            } else if (CMsg->cmsg_level == SOL_SOCKET) {
-                //if (CMsg->cmsg_type == SO_TIMESTAMPING) {
-                //    struct scm_timestamping *timestamp = (struct scm_timestamping*)CMSG_DATA(CMsg);
-                //    handleScmTimestamping(timestamp, RecvPacket->BufferLength);
-                //}
             }
         }
 
@@ -2685,6 +2692,7 @@ CxPlatSocketSendInternal(
             .msg_namelen = sizeof(MappedRemoteAddress),
             .msg_iov = &iov,
             .msg_iovlen = 1};
+
         while (recvmsg(SocketContext->SocketFd, &msg, MSG_ERRQUEUE) > 0) {
             for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
                 if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
@@ -2699,11 +2707,11 @@ CxPlatSocketSendInternal(
                 switch (cmsg->cmsg_type) {
                     case SO_TIMESTAMPNS:
                         ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
-                        handleScmTimestamping(ts, 0);
+                        handleScmTimestamping(ts);
                         break;
                     case SO_TIMESTAMPING:
                         ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
-                        handleScmTimestamping(ts, 0);
+                        handleScmTimestamping(ts);
                         break;
                     default:
                         break;
@@ -2891,10 +2899,38 @@ CxPlatDataPathRunEC(
 }
 
 void handleScmTimestamping(
-        _In_ struct scm_timestamping *ts,
-        _In_ unsigned int size) {
+        _In_ struct scm_timestamping *ts) {
     if (g_NetShaperDebug.numTimestamps < MAX_TIMESTAMPS) {
-        g_NetShaperDebug.size[g_NetShaperDebug.numTimestamps] = size;
         g_NetShaperDebug.timestamps[g_NetShaperDebug.numTimestamps++] = ts->ts[2];
     }
+}
+
+BOOLEAN getLocalIfName(
+        _In_ const QUIC_ADDR* localAddress,
+        _Out_ char* ifName) {
+    struct ifaddrs *ifaddr;
+
+    getifaddrs(&ifaddr);
+
+    for (; ifaddr != NULL; ifaddr = ifaddr->ifa_next) {
+        if (ifaddr->ifa_addr == NULL) {
+            continue;
+        }
+
+        if (QuicAddrGetFamily(localAddress) == QUIC_ADDRESS_FAMILY_INET && ifaddr->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *ipv4 = (struct sockaddr_in *)ifaddr->ifa_addr;
+            if (ipv4->sin_addr.s_addr == localAddress->Ipv4.sin_addr.s_addr) {
+                strcpy(ifName, ifaddr->ifa_name);
+                return true;
+            }
+        } else if (QuicAddrGetFamily(localAddress) == QUIC_ADDRESS_FAMILY_INET6
+                && ifaddr->ifa_addr->sa_family == AF_INET6) {
+            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)ifaddr->ifa_addr;
+            if (ipv6->sin6_addr.s6_addr == localAddress->Ipv6.sin6_addr.s6_addr) {
+                strcpy(ifName, ifaddr->ifa_name);
+                return true;
+            }
+        }
+    }
+    return false;
 }

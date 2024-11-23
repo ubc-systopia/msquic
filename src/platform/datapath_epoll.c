@@ -1029,7 +1029,7 @@ CxPlatSocketContextInitialize(
     SocketContext->SocketFd =
         socket(
             AF_INET6,
-            SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
+            SOCK_DGRAM | /* SOCK_NONBLOCK | */ SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
             IPPROTO_UDP);
     if (SocketContext->SocketFd == INVALID_SOCKET) {
         Status = errno;

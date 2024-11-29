@@ -1,6 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(DOCA REQUIRED doca)
+
 if (QUIC_CODE_CHECK)
     # enable static analyzers for this directory
     set(CMAKE_C_CLANG_TIDY ${CMAKE_C_CLANG_TIDY_AVAILABLE})
@@ -21,7 +24,11 @@ if("${CX_PLATFORM}" STREQUAL "windows")
 else()
     set(SOURCES ${SOURCES} inline.c platform_posix.c storage_posix.c cgroup.c)
     if(CX_PLATFORM STREQUAL "linux")
-        set(SOURCES ${SOURCES} datapath_epoll.c)
+        if(QUIC_USE_DPDK)
+            set(SOURCES ${sources} datapath_dpdk.c)
+        else()
+            set(SOURCES ${SOURCES} datapath_epoll.c)
+        endif()
     else()
         set(SOURCES ${SOURCES} datapath_kqueue.c)
     endif()
@@ -87,3 +94,5 @@ if(QUIC_TLS STREQUAL "openssl")
 elseif(QUIC_TLS STREQUAL "schannel")
     target_link_libraries(platform PUBLIC secur32 onecore)
 endif()
+
+target_include_directories(platform PRIVATE ${DOCA_INCLUDE_DIRS})

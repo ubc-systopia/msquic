@@ -15,6 +15,8 @@ Environment:
 
 #include "platform_internal.h"
 #include <arpa/inet.h>
+#include "ff_api.h"
+#include "ff_epoll.h"
 #include <ifaddrs.h>
 #include <inttypes.h>
 #include <linux/errqueue.h>
@@ -50,7 +52,7 @@ cxplat_sendmmsg_shim(
 {
     unsigned int SuccessCount = 0;
     while (SuccessCount < MessageLen) {
-        int Result = sendmsg(fd, &Messages[SuccessCount].msg_hdr, Flags);
+        int Result = ff_sendmsg(fd, &Messages[SuccessCount].msg_hdr, Flags);
         if (Result < 0) {
             return SuccessCount == 0 ? Result : (int)SuccessCount;
         }
@@ -473,7 +475,7 @@ CxPlatDataPathQuerySockoptSupport(
     int SegmentSize;
     OptionLength = sizeof(SegmentSize);
     Result =
-        getsockopt(
+        ff_getsockopt(
             UdpSocket,
             IPPROTO_UDP,
             UDP_SEGMENT,
@@ -491,7 +493,7 @@ CxPlatDataPathQuerySockoptSupport(
 
 Error:
     if (UdpSocket != INVALID_SOCKET) {
-        close(UdpSocket);
+        ff_close(UdpSocket);
     }
 
     return Status;
@@ -508,7 +510,7 @@ CxPlatProcessorContextUninitialize(
     CxPlatEventWaitForever(ProcContext->CompletionEvent);
     CxPlatEventUninitialize(ProcContext->CompletionEvent);
 
-    epoll_ctl(ProcContext->EpollFd, EPOLL_CTL_DEL, ProcContext->EventFd, NULL);
+    ff_epoll_ctl(ProcContext->EpollFd, EPOLL_CTL_DEL, ProcContext->EventFd, NULL);
     close(ProcContext->EventFd);
     close(ProcContext->EpollFd);
 

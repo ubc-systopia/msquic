@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(DOCA REQUIRED doca)
+pkg_check_modules(DPDK REQUIRED libdpdk)
 
 if (QUIC_CODE_CHECK)
     # enable static analyzers for this directory
@@ -48,6 +48,10 @@ else()
 endif()
 
 add_library(platform STATIC ${SOURCES})
+
+# Link F-Stack and DPDK
+target_link_libraries(platform PRIVATE /usr/local/lib/libfstack.a)
+target_link_libraries(platform PRIVATE ${DPDK_LINK_LIBRARIES})
 
 if(QUIC_USE_XDP)
     target_link_libraries(

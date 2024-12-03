@@ -462,7 +462,7 @@ CxPlatDataPathQuerySockoptSupport(
     socklen_t OptionLength;
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
 
-    int UdpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int UdpSocket = ff_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (UdpSocket == INVALID_SOCKET) {
         int SockError = errno;
         QuicTraceLogWarning(
@@ -561,7 +561,10 @@ CxPlatProcessorContextInitialize(
         QUIC_POOL_PLATFORM_SENDCTX,
         &ProcContext->SendDataPool);
 
-    EpollFd = epoll_create1(EPOLL_CLOEXEC);
+    // TODO(ARUN): This sets the file descriptor to close when calling exec. I'm not sure if I need to migrate this to
+    // ff
+    //EpollFd = epoll_create1(EPOLL_CLOEXEC);
+    EpollFd = ff_epoll_create(0);
     if (EpollFd == INVALID_SOCKET) {
         Status = errno;
         QuicTraceEvent(
@@ -590,7 +593,7 @@ CxPlatProcessorContextInitialize(
         }
     };
 
-    Ret = epoll_ctl(EpollFd, EPOLL_CTL_ADD, EventFd, &EvtFdEpEvt);
+    Ret = ff_epoll_ctl(EpollFd, EPOLL_CTL_ADD, EventFd, &EvtFdEpEvt);
     if (Ret != 0) {
         Status = errno;
         QuicTraceEvent(
@@ -621,7 +624,7 @@ Exit:
 
     if (QUIC_FAILED(Status)) {
         if (EventFdAdded) {
-            epoll_ctl(EpollFd, EPOLL_CTL_DEL, EventFd, NULL);
+            ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, EventFd, NULL);
         }
         if (EventFd != INVALID_SOCKET) {
             close(EventFd);
@@ -942,7 +945,7 @@ CxPlatSocketConfigureRss(
     };
 
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             SOL_SOCKET,
             SO_ATTACH_REUSEPORT_CBPF,
@@ -1010,7 +1013,7 @@ CxPlatSocketContextInitialize(
         }
     };
 
-    if (epoll_ctl(
+    if (ff_epoll_ctl(
             SocketContext->ProcContext->EpollFd,
             EPOLL_CTL_ADD,
             SocketContext->CleanupFd,
@@ -1029,7 +1032,7 @@ CxPlatSocketContextInitialize(
     // Create datagram socket.
     //
     SocketContext->SocketFd =
-        socket(
+        ff_socket(
             AF_INET6,
             SOCK_DGRAM | /* SOCK_NONBLOCK | */ SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
             IPPROTO_UDP);
@@ -1064,7 +1067,7 @@ CxPlatSocketContextInitialize(
 
     ifr.ifr_data = (char *)&cfg;
 
-    if (ioctl(SocketContext->SocketFd, SIOCSHWTSTAMP, &ifr) < 0) {
+    if (ff_ioctl(SocketContext->SocketFd, SIOCSHWTSTAMP, &ifr) < 0) {
         Status = errno;
         QuicTraceEvent(
             DatapathErrorStatus,
@@ -1077,7 +1080,7 @@ CxPlatSocketContextInitialize(
 
     uint32_t timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             SOL_SOCKET,
             SO_TIMESTAMPING,
@@ -1099,7 +1102,7 @@ CxPlatSocketContextInitialize(
     //
     Option = FALSE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IPV6,
             IPV6_V6ONLY,
@@ -1127,7 +1130,7 @@ CxPlatSocketContextInitialize(
     //
     Option = IP_PMTUDISC_PROBE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IP,
             IP_MTU_DISCOVER,
@@ -1144,7 +1147,7 @@ CxPlatSocketContextInitialize(
         goto Exit;
     }
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IPV6,
             IPV6_MTU_DISCOVER,
@@ -1163,7 +1166,7 @@ CxPlatSocketContextInitialize(
 
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IPV6,
             IPV6_DONTFRAG,
@@ -1192,7 +1195,7 @@ CxPlatSocketContextInitialize(
     //
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IPV6,
             IPV6_RECVPKTINFO,
@@ -1211,7 +1214,7 @@ CxPlatSocketContextInitialize(
 
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IP,
             IP_PKTINFO,
@@ -1234,7 +1237,7 @@ CxPlatSocketContextInitialize(
     //
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IPV6,
             IPV6_RECVTCLASS,
@@ -1253,7 +1256,7 @@ CxPlatSocketContextInitialize(
 
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             IPPROTO_IP,
             IP_RECVTOS,
@@ -1276,7 +1279,7 @@ CxPlatSocketContextInitialize(
     //
     Option = INT32_MAX;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             SOL_SOCKET,
             SO_RCVBUF,
@@ -1303,7 +1306,7 @@ CxPlatSocketContextInitialize(
         //
         Option = TRUE;
         Result =
-            setsockopt(
+            ff_setsockopt(
                 SocketContext->SocketFd,
                 SOL_SOCKET,
                 SO_REUSEPORT,
@@ -1327,9 +1330,9 @@ CxPlatSocketContextInitialize(
     }
 
     Result =
-        bind(
+        ff_bind(
             SocketContext->SocketFd,
-            &MappedAddress.Ip,
+            (struct linux_sockaddr*) &MappedAddress.Ip,
             sizeof(MappedAddress));
     if (Result == SOCKET_ERROR) {
         Status = errno;
@@ -1351,9 +1354,9 @@ CxPlatSocketContextInitialize(
         }
 
         Result =
-            connect(
+            ff_connect(
                 SocketContext->SocketFd,
-                &MappedAddress.Ip,
+                (struct linux_sockaddr*) &MappedAddress.Ip,
                 sizeof(MappedAddress));
 
         if (Result == SOCKET_ERROR) {
@@ -1376,9 +1379,9 @@ CxPlatSocketContextInitialize(
     //
     AssignedLocalAddressLength = sizeof(Binding->LocalAddress);
     Result =
-        getsockname(
+        ff_getsockname(
             SocketContext->SocketFd,
-            (struct sockaddr *)&Binding->LocalAddress,
+            (struct linux_sockaddr *) &Binding->LocalAddress,
             &AssignedLocalAddressLength);
     if (Result == SOCKET_ERROR) {
         Status = errno;
@@ -1412,7 +1415,7 @@ CxPlatSocketContextInitialize(
 Exit:
 
     if (QUIC_FAILED(Status)) {
-        close(SocketContext->SocketFd);
+        ff_close(SocketContext->SocketFd);
         SocketContext->SocketFd = INVALID_SOCKET;
     }
 
@@ -1439,8 +1442,8 @@ CxPlatSocketContextUninitializeComplete(
     }
 
     int EpollFd = SocketContext->ProcContext->EpollFd;
-    epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
-    epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
+    ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
+    ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
     close(SocketContext->CleanupFd);
     close(SocketContext->SocketFd);
 
@@ -1453,7 +1456,7 @@ CxPlatSocketContextUninitialize(
     )
 {
     int EpollRes =
-        epoll_ctl(SocketContext->ProcContext->EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
+        ff_epoll_ctl(SocketContext->ProcContext->EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
     CXPLAT_FRE_ASSERT(EpollRes == 0);
 
     if (CxPlatCurThreadID() != SocketContext->ProcContext->ThreadId) {
@@ -1522,7 +1525,7 @@ CxPlatSocketContextStartReceive(
     };
 
     int Ret =
-        epoll_ctl(
+        ff_epoll_ctl(
             SocketContext->ProcContext->EpollFd,
             EPOLL_CTL_ADD,
             SocketContext->SocketFd,

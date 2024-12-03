@@ -1738,7 +1738,7 @@ CxPlatSocketContextSendComplete(
     };
 
     int Ret =
-        epoll_ctl(
+        ff_epoll_ctl(
             SocketContext->ProcContext->EpollFd,
             EPOLL_CTL_MOD,
             SocketContext->SocketFd,
@@ -1819,7 +1819,7 @@ CxPlatSocketContextProcessEvents(
         int ErrNum = 0;
         socklen_t OptLen = sizeof(ErrNum);
         ssize_t Ret =
-            getsockopt(
+            ff_getsockopt(
                 SocketContext->SocketFd,
                 SOL_SOCKET,
                 SO_ERROR,
@@ -1867,26 +1867,34 @@ CxPlatSocketContextProcessEvents(
                 CXPLAT_DBG_ASSERT(SocketContext->CurrentRecvBlocks[i] != NULL);
             }
 
-            int Ret =
-                recvmmsg(
-                    SocketContext->SocketFd,
-                    SocketContext->RecvMsgHdr,
-                    CXPLAT_MAX_BATCH_RECEIVE,
-                    0,
-                    NULL);
-            if (Ret < 0) {
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                    QuicTraceEvent(
-                        DatapathErrorStatus,
-                        "[data][%p] ERROR, %u, %s.",
-                        SocketContext->Binding,
-                        errno,
-                        "recvmmsg failed");
+            int numMsgs = 0;
+            int Ret = ff_recvmsg(
+                SocketContext->SocketFd,
+                &SocketContext->RecvMsgHdr[0].msg_hdr,
+                0);
+            for (numMsgs = 1; numMsgs < CXPLAT_MAX_BATCH_RECEIVE; ++numMsgs) {
+                if (Ret < 0) {
+                    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                        QuicTraceEvent(
+                            DatapathErrorStatus,
+                            "[data][%p] ERROR, %u, %s.",
+                            SocketContext->Binding,
+                            errno,
+                            "recvmmsg failed");
+                        goto RecvError;
+                    }
+                    numMsgs--;
+                    break;
                 }
-                break;
+
+                Ret = ff_recvmsg(
+                       SocketContext->SocketFd,
+                       &SocketContext->RecvMsgHdr[i].msg_hdr,
+                       MSG_DONTWAIT);
             }
-            CxPlatSocketContextRecvComplete(SocketContext, Ret);
+            CxPlatSocketContextRecvComplete(SocketContext, numMsgs);
         }
+        RecvError: ;
     }
 
     if (EPOLLOUT & Events) {
@@ -2050,12 +2058,12 @@ Exit:
                     CXPLAT_SOCKET_CONTEXT* SocketContext = &Binding->SocketContexts[i];
                     int EpollFd = SocketContext->ProcContext->EpollFd;
                     if (SocketContext->CleanupFd != INVALID_SOCKET) {
-                        epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
+                        ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
                         close(SocketContext->CleanupFd);
                     }
                     if (SocketContext->SocketFd != INVALID_SOCKET) {
-                        epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
-                        close(SocketContext->SocketFd);
+                        ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
+                        ff_close(SocketContext->SocketFd);
                     }
                     CxPlatRundownRelease(&Binding->Rundown);
                 }
@@ -2746,7 +2754,7 @@ CxPlatSocketSendInternal(
                 };
 
                 int Ret =
-                    epoll_ctl(
+                    ff_epoll_ctl(
                         SocketContext->ProcContext->EpollFd,
                         EPOLL_CTL_MOD,
                         SocketContext->SocketFd,

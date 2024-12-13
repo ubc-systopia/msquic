@@ -593,6 +593,8 @@ CxPlatProcessorContextInitialize(
         }
     };
 
+    // TODO(arun): BUG! BUG! BUG! Look here don't debug more this is bug bug bug
+    // 9/12/24: Traced it to a `fgets` call.
     Ret = ff_epoll_ctl(EpollFd, EPOLL_CTL_ADD, EventFd, &EvtFdEpEvt);
     if (Ret != 0) {
         Status = errno;
@@ -1031,6 +1033,7 @@ CxPlatSocketContextInitialize(
     //
     // Create datagram socket.
     //
+    // TODO(arun): bug: look into protocol 17, type = 3
     SocketContext->SocketFd =
         ff_socket(
             AF_INET6,

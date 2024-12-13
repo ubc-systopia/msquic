@@ -223,7 +223,7 @@ typedef struct CXPLAT_SOCKET_CONTEXT {
     //
     // The cleanup event FD used by this socket context.
     //
-    int CleanupFd;
+    //int CleanupFd;
 
     //
     // Used to register different event FD with epoll.
@@ -345,7 +345,8 @@ typedef struct CXPLAT_DATAPATH_PROC_CONTEXT {
     //
     // The event FD for this proc context.
     //
-    int EventFd;
+    // TODO(arun): not sure if this is required but I need to check eventfd
+    //int EventFd;
 
     //
     // The index of the context in the datapath's array.
@@ -505,14 +506,14 @@ CxPlatProcessorContextUninitialize(
     _In_ CXPLAT_DATAPATH_PROC_CONTEXT* ProcContext
     )
 {
-    const eventfd_t Value = 1;
-    eventfd_write(ProcContext->EventFd, Value);
+    //const eventfd_t Value = 1;
+    //eventfd_write(ProcContext->EventFd, Value);
     CxPlatEventWaitForever(ProcContext->CompletionEvent);
     CxPlatEventUninitialize(ProcContext->CompletionEvent);
 
-    ff_epoll_ctl(ProcContext->EpollFd, EPOLL_CTL_DEL, ProcContext->EventFd, NULL);
-    close(ProcContext->EventFd);
-    close(ProcContext->EpollFd);
+    //ff_epoll_ctl(ProcContext->EpollFd, EPOLL_CTL_DEL, ProcContext->EventFd, NULL);
+    //close(ProcContext->EventFd);
+    //close(ProcContext->EpollFd);
 
     CxPlatPoolUninitialize(&ProcContext->RecvBlockPool);
     CxPlatPoolUninitialize(&ProcContext->LargeSendBufferPool);
@@ -529,10 +530,10 @@ CxPlatProcessorContextInitialize(
 {
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
     int EpollFd = INVALID_SOCKET;
-    int EventFd = INVALID_SOCKET;
-    int Ret = 0;
+    //int EventFd = INVALID_SOCKET;
+    //int Ret = 0;
     uint32_t RecvPacketLength = 0;
-    BOOLEAN EventFdAdded = FALSE;
+    //BOOLEAN EventFdAdded = FALSE;
 
     CXPLAT_DBG_ASSERT(Datapath != NULL);
 
@@ -575,42 +576,41 @@ CxPlatProcessorContextInitialize(
         goto Exit;
     }
 
-    EventFd = eventfd(0, EFD_CLOEXEC);
-    if (EventFd == INVALID_SOCKET) {
-        Status = errno;
-        QuicTraceEvent(
-            LibraryErrorStatus,
-            "[ lib] ERROR, %u, %s.",
-            Status,
-            "eventfd failed");
-        goto Exit;
-    }
+    // TODO(arun): removed when calling ff_epoll_ctl, the eventfd file descriptor isn't valid (EBADF)
+    //EventFd = eventfd(0, EFD_CLOEXEC);
+    //if (EventFd == INVALID_SOCKET) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        LibraryErrorStatus,
+    //        "[ lib] ERROR, %u, %s.",
+    //        Status,
+    //        "eventfd failed");
+    //    goto Exit;
+    //}
 
-    struct epoll_event EvtFdEpEvt = {
-        .events = EPOLLIN,
-        .data = {
-            .ptr = NULL
-        }
-    };
+    //struct epoll_event EvtFdEpEvt = {
+    //    .events = EPOLLIN,
+    //    .data = {
+    //        .ptr = NULL
+    //    }
+    //};
 
-    // TODO(arun): BUG! BUG! BUG! Look here don't debug more this is bug bug bug
-    // 9/12/24: Traced it to a `fgets` call.
-    Ret = ff_epoll_ctl(EpollFd, EPOLL_CTL_ADD, EventFd, &EvtFdEpEvt);
-    if (Ret != 0) {
-        Status = errno;
-        QuicTraceEvent(
-            LibraryErrorStatus,
-            "[ lib] ERROR, %u, %s.",
-            Status,
-            "epoll_ctl(EPOLL_CTL_ADD) failed");
-        goto Exit;
-    }
+    //Ret = ff_epoll_ctl(EpollFd, EPOLL_CTL_ADD, EventFd, &EvtFdEpEvt);
+    //if (Ret != 0) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        LibraryErrorStatus,
+    //        "[ lib] ERROR, %u, %s.",
+    //        Status,
+    //        "epoll_ctl(EPOLL_CTL_ADD) failed");
+    //    goto Exit;
+    //}
 
-    EventFdAdded = TRUE;
+    //EventFdAdded = TRUE;
 
     ProcContext->Datapath = Datapath;
     ProcContext->EpollFd = EpollFd;
-    ProcContext->EventFd = EventFd;
+    //ProcContext->EventFd = EventFd;
     ProcContext->ThreadId = 0;
 
     //
@@ -625,12 +625,12 @@ CxPlatProcessorContextInitialize(
 Exit:
 
     if (QUIC_FAILED(Status)) {
-        if (EventFdAdded) {
-            ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, EventFd, NULL);
-        }
-        if (EventFd != INVALID_SOCKET) {
-            close(EventFd);
-        }
+        //if (EventFdAdded) {
+        //    ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, EventFd, NULL);
+        //}
+        //if (EventFd != INVALID_SOCKET) {
+        //    close(EventFd);
+        //}
         if (EpollFd != INVALID_SOCKET) {
             close(EpollFd);
         }
@@ -996,39 +996,40 @@ CxPlatSocketContextInitialize(
         SocketContext->EventContexts[i] = i;
     }
 
-    SocketContext->CleanupFd = eventfd(0, EFD_CLOEXEC);
-    if (SocketContext->CleanupFd == INVALID_SOCKET) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "eventfd failed");
-        goto Exit;
-    }
+    // TODO(arun): do I need a cleanup event?
+    //SocketContext->CleanupFd = eventfd(0, EFD_CLOEXEC);
+    //if (SocketContext->CleanupFd == INVALID_SOCKET) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "eventfd failed");
+    //    goto Exit;
+    //}
 
-    struct epoll_event EvtFdEpEvt = {
-        .events = EPOLLIN,
-        .data = {
-            .ptr = &SocketContext->EventContexts[QUIC_SOCK_EVENT_CLEANUP]
-        }
-    };
+    //struct epoll_event EvtFdEpEvt = {
+    //    .events = EPOLLIN,
+    //    .data = {
+    //        .ptr = &SocketContext->EventContexts[QUIC_SOCK_EVENT_CLEANUP]
+    //    }
+    //};
 
-    if (ff_epoll_ctl(
-            SocketContext->ProcContext->EpollFd,
-            EPOLL_CTL_ADD,
-            SocketContext->CleanupFd,
-            &EvtFdEpEvt) != 0) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "epoll_ctl(EPOLL_CTL_ADD) failed");
-        goto Exit;
-    }
+    //if (ff_epoll_ctl(
+    //        SocketContext->ProcContext->EpollFd,
+    //        EPOLL_CTL_ADD,
+    //        SocketContext->CleanupFd,
+    //        &EvtFdEpEvt) != 0) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "epoll_ctl(EPOLL_CTL_ADD) failed");
+    //    goto Exit;
+    //}
 
     //
     // Create datagram socket.
@@ -1446,8 +1447,8 @@ CxPlatSocketContextUninitializeComplete(
 
     int EpollFd = SocketContext->ProcContext->EpollFd;
     ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
-    ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
-    close(SocketContext->CleanupFd);
+    //ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
+    //close(SocketContext->CleanupFd);
     close(SocketContext->SocketFd);
 
     CxPlatRundownRelease(&SocketContext->Binding->Rundown);
@@ -1463,8 +1464,8 @@ CxPlatSocketContextUninitialize(
     CXPLAT_FRE_ASSERT(EpollRes == 0);
 
     if (CxPlatCurThreadID() != SocketContext->ProcContext->ThreadId) {
-        const eventfd_t Value = 1;
-        eventfd_write(SocketContext->CleanupFd, Value);
+        //const eventfd_t Value = 1;
+        //eventfd_write(SocketContext->CleanupFd, Value);
     } else {
         CxPlatSocketContextUninitializeComplete(SocketContext);
     }
@@ -1962,7 +1963,7 @@ CxPlatSocketCreateUdp(
     for (uint32_t i = 0; i < SocketCount; i++) {
         Binding->SocketContexts[i].Binding = Binding;
         Binding->SocketContexts[i].SocketFd = INVALID_SOCKET;
-        Binding->SocketContexts[i].CleanupFd = INVALID_SOCKET;
+        //Binding->SocketContexts[i].CleanupFd = INVALID_SOCKET;
         for (ssize_t j = 0; j < CXPLAT_MAX_BATCH_RECEIVE; j++) {
             Binding->SocketContexts[i].RecvIov[j].iov_len =
                 Binding->Mtu - CXPLAT_MIN_IPV4_HEADER_SIZE - CXPLAT_UDP_HEADER_SIZE;
@@ -2060,10 +2061,10 @@ Exit:
                 for (uint32_t i = 0; i < SocketCount; i++) {
                     CXPLAT_SOCKET_CONTEXT* SocketContext = &Binding->SocketContexts[i];
                     int EpollFd = SocketContext->ProcContext->EpollFd;
-                    if (SocketContext->CleanupFd != INVALID_SOCKET) {
-                        ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
-                        close(SocketContext->CleanupFd);
-                    }
+                    //if (SocketContext->CleanupFd != INVALID_SOCKET) {
+                    //    ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->CleanupFd, NULL);
+                    //    close(SocketContext->CleanupFd);
+                    //}
                     if (SocketContext->SocketFd != INVALID_SOCKET) {
                         ff_epoll_ctl(EpollFd, EPOLL_CTL_DEL, SocketContext->SocketFd, NULL);
                         ff_close(SocketContext->SocketFd);
@@ -2864,9 +2865,10 @@ CxPlatDataPathWake(
     _In_ void* Context
     )
 {
-    CXPLAT_DATAPATH_PROC_CONTEXT* ProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT*)Context;
-    const eventfd_t Value = 1;
-    eventfd_write(ProcContext->EventFd, Value);
+    (void) Context;
+    //CXPLAT_DATAPATH_PROC_CONTEXT* ProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT*)Context;
+    //const eventfd_t Value = 1;
+    //eventfd_write(ProcContext->EventFd, Value);
 }
 
 BOOLEAN // Did work?

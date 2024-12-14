@@ -1035,6 +1035,7 @@ CxPlatSocketContextInitialize(
     // Create datagram socket.
     //
     // TODO(arun): I don't think F-stack supports SOCK_CLOEXEC
+    //             bug: look into protocol 17, type = 3
     SocketContext->SocketFd =
         ff_socket(
             AF_INET6,

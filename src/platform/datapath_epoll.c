@@ -2924,6 +2924,7 @@ void handleScmTimestamping(
     }
 }
 
+// TODO(arun): figure out why LocalAddress is NULL here
 BOOLEAN getLocalIfName(
         _In_ const QUIC_ADDR* localAddress,
         _Out_ char* ifName) {

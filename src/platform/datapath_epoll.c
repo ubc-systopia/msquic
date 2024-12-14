@@ -1034,10 +1034,11 @@ CxPlatSocketContextInitialize(
     //
     // Create datagram socket.
     //
+    // TODO(arun): I don't think F-stack supports SOCK_CLOEXEC
     SocketContext->SocketFd =
         ff_socket(
             AF_INET6,
-            SOCK_DGRAM | /* SOCK_NONBLOCK | */ SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
+            SOCK_DGRAM /* | SOCK_NONBLOCK | SOCK_CLOEXEC */, // TODO check if SOCK_CLOEXEC is required?
             IPPROTO_UDP);
     if (SocketContext->SocketFd == INVALID_SOCKET) {
         Status = errno;

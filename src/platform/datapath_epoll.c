@@ -2708,6 +2708,7 @@ CxPlatSocketSendInternal(
                 PktInfo = (struct in_pktinfo*) CMSG_DATA(CMsg);
                 // TODO: Use Ipv4 instead of Ipv6.
                 PktInfo->ipi_ifindex = LocalAddress->Ipv6.sin6_scope_id;
+                // TODO(arun): We may not need this
                 PktInfo->ipi_addr = LocalAddress->Ipv4.sin_addr;
             } else {
                 CMsg->cmsg_level = IPPROTO_IPV6;
@@ -2715,6 +2716,7 @@ CxPlatSocketSendInternal(
                 CMsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
                 PktInfo6 = (struct in6_pktinfo*) CMSG_DATA(CMsg);
                 PktInfo6->ipi6_ifindex = LocalAddress->Ipv6.sin6_scope_id;
+                // TODO(arun): We may not need this
                 PktInfo6->ipi6_addr = LocalAddress->Ipv6.sin6_addr;
             }
 

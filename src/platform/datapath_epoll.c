@@ -38,9 +38,9 @@ struct NetShaperTimestamping g_NetShaperDebug = {};
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
 
-#ifdef HAS_SENDMMSG
-#define CXPLAT_SENDMMSG sendmmsg
-#else
+//#ifdef HAS_SENDMMSG
+//#define CXPLAT_SENDMMSG sendmmsg
+//#else
 static
 int
 cxplat_sendmmsg_shim(
@@ -62,7 +62,7 @@ cxplat_sendmmsg_shim(
     return SuccessCount;
 }
 #define CXPLAT_SENDMMSG cxplat_sendmmsg_shim
-#endif
+//#endif
 
 //
 // The maximum single buffer size for sending coalesced payloads.
@@ -82,9 +82,9 @@ cxplat_sendmmsg_shim(
 #ifdef UDP_SEGMENT
 #define CXPLAT_MAX_BATCH_SEND 1
 #else
-#define CXPLAT_MAX_BATCH_SEND 43
+#define CXPLAT_MAX_BATCH_SEND 86
 #endif
-#define CXPLAT_MAX_BATCH_RECEIVE 43
+#define CXPLAT_MAX_BATCH_RECEIVE 1220
 
 //
 // A receive block to receive a UDP packet over the sockets.
@@ -1052,55 +1052,55 @@ CxPlatSocketContextInitialize(
         goto Exit;
     }
 
-    struct ifreq ifr;
-    struct hwtstamp_config cfg;
-    memset(&ifr, 0, sizeof(ifr));
-    memset(&cfg, 0, sizeof(cfg));
-    if (!getLocalIfName(LocalAddress, ifr.ifr_name)) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "getLocalIfName failed");
-        goto Exit;
-    }
+    //struct ifreq ifr;
+    //struct hwtstamp_config cfg;
+    //memset(&ifr, 0, sizeof(ifr));
+    //memset(&cfg, 0, sizeof(cfg));
+    //if (!getLocalIfName(LocalAddress, ifr.ifr_name)) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "getLocalIfName failed");
+    //    goto Exit;
+    //}
 
-    cfg.tx_type = HWTSTAMP_TX_ON;
-    cfg.rx_filter = HWTSTAMP_FILTER_NONE;
+    //cfg.tx_type = HWTSTAMP_TX_ON;
+    //cfg.rx_filter = HWTSTAMP_FILTER_NONE;
 
-    ifr.ifr_data = (char *)&cfg;
+    //ifr.ifr_data = (char *)&cfg;
 
-    if (ff_ioctl(SocketContext->SocketFd, SIOCSHWTSTAMP, &ifr) < 0) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "ioctl(SIOCSHWTSTAMP) failed");
-        goto Exit;
-    }
+    //if (ff_ioctl(SocketContext->SocketFd, SIOCSHWTSTAMP, &ifr) < 0) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "ioctl(SIOCSHWTSTAMP) failed");
+    //    goto Exit;
+    //}
 
-    uint32_t timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            SOL_SOCKET,
-            SO_TIMESTAMPING,
-            &timestamp_flags,
-            sizeof(timestamp_flags));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(SO_TIMESTAMPING) failed");
-        goto Exit;
-    }
+    //uint32_t timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        SOL_SOCKET,
+    //        SO_TIMESTAMPING,
+    //        &timestamp_flags,
+    //        sizeof(timestamp_flags));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(SO_TIMESTAMPING) failed");
+    //    goto Exit;
+    //}
 
     //
     // Set dual (IPv4 & IPv6) socket mode.
@@ -1133,24 +1133,25 @@ CxPlatSocketContextInitialize(
     // Linux: IP_DONTFRAGMENT option is not available. IP_MTU_DISCOVER/IPV6_MTU_DISCOVER
     // is the apparent alternative.
     //
-    Option = IP_PMTUDISC_PROBE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            IPPROTO_IP,
-            IP_MTU_DISCOVER,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(IP_MTU_DISCOVER) failed");
-        goto Exit;
-    }
+    // TODO(arun): seems like f-stack doesn't support this
+    //Option = IP_PMTUDISC_PROBE;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        IPPROTO_IP,
+    //        IP_MTU_DISCOVER,
+    //        (const void*)&Option,
+    //        sizeof(Option));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(IP_MTU_DISCOVER) failed");
+    //    goto Exit;
+    //}
     Result =
         ff_setsockopt(
             SocketContext->SocketFd,
@@ -1198,108 +1199,113 @@ CxPlatSocketContextInitialize(
     // IPV6_RECVPKTINFO seems like is the alternative.
     // TODO: Check if this works as expected?
     //
-    Option = TRUE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            IPPROTO_IPV6,
-            IPV6_RECVPKTINFO,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(IPV6_RECVPKTINFO) failed");
-        goto Exit;
-    }
+    //TODO(arun): why does this fail? This should work
+    //Option = TRUE;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        IPPROTO_IPV6,
+    //        IPV6_RECVPKTINFO,
+    //        (const void*)&Option,
+    //        sizeof(Option));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(IPV6_RECVPKTINFO) failed");
+    //    goto Exit;
+    //}
 
-    Option = TRUE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            IPPROTO_IP,
-            IP_PKTINFO,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(IP_PKTINFO) failed");
-        goto Exit;
-    }
+    // TODO(arun): why does this fail? This should work
+    //Option = TRUE;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        IPPROTO_IP,
+    //        IP_PKTINFO,
+    //        (const void*)&Option,
+    //        sizeof(Option));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(IP_PKTINFO) failed");
+    //    goto Exit;
+    //}
 
     //
     // Set socket option to receive TOS (= DSCP + ECN) information from the
     // incoming packet.
     //
-    Option = TRUE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            IPPROTO_IPV6,
-            IPV6_RECVTCLASS,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(IPV6_RECVTCLASS) failed");
-        goto Exit;
-    }
+    // TODO(arun): why does this fail? This should work
+    //Option = TRUE;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        IPPROTO_IPV6,
+    //        IPV6_RECVTCLASS,
+    //        (const void*)&Option,
+    //        sizeof(Option));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(IPV6_RECVTCLASS) failed");
+    //    goto Exit;
+    //}
 
-    Option = TRUE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            IPPROTO_IP,
-            IP_RECVTOS,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(IP_RECVTOS) failed");
-        goto Exit;
-    }
+    //TODO(arun): why does this fail? This should work
+    //Option = TRUE;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        IPPROTO_IP,
+    //        IP_RECVTOS,
+    //        (const void*)&Option,
+    //        sizeof(Option));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(IP_RECVTOS) failed");
+    //    goto Exit;
+    //}
 
     //
     // The socket is shared by multiple QUIC endpoints, so increase the receive
     // buffer size.
     //
-    Option = INT32_MAX;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            SOL_SOCKET,
-            SO_RCVBUF,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(SO_RCVBUF) failed");
-        goto Exit;
-    }
+    // TODO(arun): why does this fail? This should work
+    //Option = INT32_MAX;
+    //Result =
+    //    ff_setsockopt(
+    //        SocketContext->SocketFd,
+    //        SOL_SOCKET,
+    //        SO_RCVBUF,
+    //        (const void*)&Option,
+    //        sizeof(Option));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(SO_RCVBUF) failed");
+    //    goto Exit;
+    //}
 
     //
     // Only set SO_REUSEPORT on a server socket, otherwise the client could be
@@ -1416,6 +1422,29 @@ CxPlatSocketContextInitialize(
     if (Binding->LocalAddress.Ipv6.sin6_family == AF_INET6) {
         Binding->LocalAddress.Ipv6.sin6_family = QUIC_ADDRESS_FAMILY_INET6;
     }
+
+    //int timestamp_flags = SOF_TIMESTAMPING_SOFTWARE | SOF_TIMESTAMPING_RX_HARDWARE | SOF_TIMESTAMPING_RX_SOFTWARE;
+    //    | SOF_TIMESTAMPING_RAW_HARDWARE
+    //    | SOF_TIMESTAMPING_SYS_HARDWARE
+    //    | SOF_TIMESTAMPING_SOFTWARE;
+
+    //Result =
+    //    setsockopt(
+    //        SocketContext->SocketFd,
+    //        SOL_SOCKET,
+    //        SO_TIMESTAMPING,
+    //        &timestamp_flags,
+    //        sizeof(timestamp_flags));
+    //if (Result == SOCKET_ERROR) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "setsockopt(SO_TIMESTAMPING) failed");
+    //    goto Exit;
+    //}
 
 Exit:
 
@@ -1636,6 +1665,16 @@ CxPlatSocketContextRecvComplete(
                 } else if (CMsg->cmsg_type == IP_TOS) {
                     RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                     FoundTOS = TRUE;
+                }
+            } else if (CMsg->cmsg_level == SOL_SOCKET) {
+                struct scm_timestamping* ts = (struct scm_timestamping*)CMSG_DATA(CMsg);
+                switch (CMsg->cmsg_type) {
+                    case SO_TIMESTAMPNS:
+                    case SO_TIMESTAMPING:
+                        handleScmTimestamping(ts);
+                        break;
+                    default:
+                        break;
                 }
             }
         }
@@ -2575,6 +2614,7 @@ CxPlatSocketSendInternal(
     char ControlBuffer[
         CMSG_SPACE(sizeof(struct in6_pktinfo)) +
         CMSG_SPACE(sizeof(int))
+        + CMSG_SPACE(sizeof(uint32_t)) // timestamping options
     #ifdef UDP_SEGMENT
         + CMSG_SPACE(sizeof(uint16_t))
     #endif
@@ -2677,7 +2717,16 @@ CxPlatSocketSendInternal(
                 PktInfo6->ipi6_ifindex = LocalAddress->Ipv6.sin6_scope_id;
                 PktInfo6->ipi6_addr = LocalAddress->Ipv6.sin6_addr;
             }
+
         }
+
+        //Mhdr->msg_controllen += CMSG_SPACE(sizeof(uint32_t));
+        //CMsg = CMSG_NXTHDR(Mhdr, CMsg);
+        //CMsg->cmsg_level = SOL_SOCKET;
+        //CMsg->cmsg_type = SO_TIMESTAMPING;
+        //CMsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
+        //*((uint32_t*) CMSG_DATA(CMsg)) =
+        //    SOF_TIMESTAMPING_RX_HARDWARE | SOF_TIMESTAMPING_RX_SOFTWARE;
 
 #ifdef UDP_SEGMENT
         if (SendData->SegmentSize > 0 && (SendData->Iovs + TotalMessagesCount)->iov_len > SendData->SegmentSize) {

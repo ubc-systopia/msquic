@@ -41,7 +41,8 @@ endif()
 project(msquic)
 
 # Set a default build type if none was specified
-set(default_build_type "Release")
+#set(default_build_type "Release")
+set(default_build_type "Debug")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
@@ -83,7 +84,7 @@ option(QUIC_BUILD_TOOLS "Builds the tools code" OFF)
 option(QUIC_BUILD_TEST "Builds the test code" OFF)
 option(QUIC_BUILD_PERF "Builds the perf code" OFF)
 option(QUIC_BUILD_SHARED "Builds msquic as a dynamic library" OFF)
-option(QUIC_ENABLE_LOGGING "Enables logging" OFF)
+option(QUIC_ENABLE_LOGGING "Enables logging" ON)
 option(QUIC_ENABLE_SANITIZERS "Enables sanitizers" OFF)
 option(QUIC_STATIC_LINK_CRT "Statically links the C runtime" ON)
 option(QUIC_STATIC_LINK_PARTIAL_CRT "Statically links the compiler-specific portion of the C runtime" ON)

@@ -106,6 +106,7 @@ option(QUIC_DISABLE_POSIX_GSO "Disable GSO for systems that say they support it 
 option(QUIC_OFFICIAL_RELEASE "Configured the build for an official release" OFF)
 set(QUIC_FOLDER_PREFIX "" CACHE STRING "Optional prefix for source group folders when using an IDE generator")
 set(QUIC_LIBRARY_NAME "msquic" CACHE STRING "Override the output library name")
+option(FSTACK_BUILD "Build with F-Stack" ON)
 
 if (QUIC_GAMECORE_BUILD)
     if(${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION} VERSION_LESS "10.0.20348.0")

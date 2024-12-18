@@ -15,16 +15,19 @@ Environment:
 
 #define __APPLE_USE_RFC_3542 1
 // See netinet6/in6.h:46 for an explanation
+
+#include "ff_api.h"
+
 #include "platform_internal.h"
 #include <fcntl.h>
-#include <sys/event.h>
 #include <sys/socket.h>
-#include <sys/sysctl.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #ifdef QUIC_CLOG
 #include "datapath_kqueue.c.clog.h"
 #endif
+
+struct NetShaperTimestamping g_NetShaperDebug = {};
 
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
@@ -383,11 +386,11 @@ CxPlatProcessorContextUninitialize(
 {
     struct kevent Event = {0};
     EV_SET(&Event, ProcContext->KqueueFd, EVFILT_USER, EV_ADD | EV_CLEAR, NOTE_TRIGGER, 0, NULL);
-    kevent(ProcContext->KqueueFd, &Event, 1, NULL, 0, NULL);
+    ff_kevent(ProcContext->KqueueFd, &Event, 1, NULL, 0, NULL);
     CxPlatEventWaitForever(ProcContext->CompletionEvent);
     CxPlatEventUninitialize(ProcContext->CompletionEvent);
 
-    close(ProcContext->KqueueFd);
+    ff_close(ProcContext->KqueueFd);
 
     CxPlatPoolUninitialize(&ProcContext->RecvBlockPool);
     CxPlatPoolUninitialize(&ProcContext->LargeSendBufferPool);
@@ -433,7 +436,7 @@ CxPlatProcessorContextInitialize(
         QUIC_POOL_PLATFORM_SENDCTX,
         &ProcContext->SendDataPool);
 
-    KqueueFd = kqueue();
+    KqueueFd = ff_kqueue();
     if (KqueueFd == INVALID_SOCKET) {
         Status = errno;
         QuicTraceEvent(
@@ -461,7 +464,7 @@ Exit:
 
     if (QUIC_FAILED(Status)) {
         if (KqueueFd != INVALID_SOCKET) {
-            close(KqueueFd);
+            ff_close(KqueueFd);
         }
         CxPlatPoolUninitialize(&ProcContext->RecvBlockPool);
         CxPlatPoolUninitialize(&ProcContext->LargeSendBufferPool);
@@ -774,7 +777,7 @@ CxPlatSocketContextInitialize(
     // For that case we use AF_INET.
     //
     SocketContext->SocketFd =
-        socket(
+        ff_socket(
             ForceIpv4 ? AF_INET : AF_INET6,
             SOCK_DGRAM,
             IPPROTO_UDP);
@@ -795,7 +798,7 @@ CxPlatSocketContextInitialize(
     if (!ForceIpv4) {
         Option = FALSE;
         Result =
-            setsockopt(
+            ff_setsockopt(
                 SocketContext->SocketFd,
                 IPPROTO_IPV6,
                 IPV6_V6ONLY,
@@ -817,7 +820,7 @@ CxPlatSocketContextInitialize(
     // Set non blocking mode
     //
     Flags =
-        fcntl(
+        ff_fcntl(
             SocketContext->SocketFd,
             F_GETFL,
             NULL);
@@ -834,7 +837,7 @@ CxPlatSocketContextInitialize(
 
     Flags |= O_NONBLOCK;
     Result =
-        fcntl(
+        ff_fcntl(
             SocketContext->SocketFd,
             F_SETFL,
             Flags);
@@ -862,10 +865,10 @@ CxPlatSocketContextInitialize(
     //
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             ForceIpv4 ? IPPROTO_IP : IPPROTO_IPV6,
-            ForceIpv4 ? IP_RECVPKTINFO : IPV6_RECVPKTINFO,
+            ForceIpv4 ? IP_PKTINFO : IPV6_RECVPKTINFO,
             (const void*)&Option,
             sizeof(Option));
     if (Result == SOCKET_ERROR) {
@@ -885,7 +888,7 @@ CxPlatSocketContextInitialize(
     //
     Option = TRUE;
     Result =
-        setsockopt(
+        ff_setsockopt(
             SocketContext->SocketFd,
             ForceIpv4 ? IPPROTO_IP : IPPROTO_IPV6,
             ForceIpv4 ? IP_RECVTOS :IPV6_RECVTCLASS,
@@ -951,9 +954,9 @@ CxPlatSocketContextInitialize(
         }
 
         Result =
-            bind(
+            ff_bind(
                 SocketContext->SocketFd,
-                &MappedAddress.Ip,
+                (struct linux_sockaddr *) &MappedAddress.Ip,
                 ForceIpv4 ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6));
         if (Result == SOCKET_ERROR) {
             Status = errno;
@@ -981,9 +984,9 @@ CxPlatSocketContextInitialize(
         }
 
         Result =
-            connect(
+            ff_connect(
                 SocketContext->SocketFd,
-                &MappedAddress.Ip,
+                (struct linux_sockaddr *) &MappedAddress.Ip,
                 ForceIpv4 ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6));
         if (Result == SOCKET_ERROR) {
             Status = errno;
@@ -1006,9 +1009,9 @@ CxPlatSocketContextInitialize(
     //
     AssignedLocalAddressLength = sizeof(Binding->LocalAddress);
     Result =
-        getsockname(
+        ff_getsockname(
             SocketContext->SocketFd,
-            (struct sockaddr *)&MappedAddress,
+            (struct linux_sockaddr *)&MappedAddress,
             &AssignedLocalAddressLength);
     if (Result == SOCKET_ERROR) {
         Status = errno;
@@ -1057,7 +1060,7 @@ CxPlatSocketContextUninitializeComplete(
                 PendingSendLinkage));
     }
 
-    close(SocketContext->SocketFd);
+    ff_close(SocketContext->SocketFd);
 
     CxPlatRundownRelease(&SocketContext->Binding->Rundown);
 }
@@ -1069,12 +1072,12 @@ CxPlatSocketContextUninitialize(
 {
     struct kevent DeleteEvent = {0};
     EV_SET(&DeleteEvent, SocketContext->SocketFd, EVFILT_READ, EV_DELETE, 0, 0, (void*)SocketContext);
-    kevent(SocketContext->ProcContext->KqueueFd, &DeleteEvent, 1, NULL, 0, NULL);
+    ff_kevent(SocketContext->ProcContext->KqueueFd, &DeleteEvent, 1, NULL, 0, NULL);
 
     if (CxPlatCurThreadID() != SocketContext->ProcContext->ThreadId) {
         struct kevent Event = {0};
         EV_SET(&Event, SocketContext->SocketFd, EVFILT_USER, EV_ADD | EV_CLEAR, NOTE_TRIGGER, 0, (void*)SocketContext);
-        kevent(SocketContext->ProcContext->KqueueFd, &Event, 1, NULL, 0, NULL);
+        ff_kevent(SocketContext->ProcContext->KqueueFd, &Event, 1, NULL, 0, NULL);
     } else {
         CxPlatSocketContextUninitializeComplete(SocketContext);
     }
@@ -1134,7 +1137,7 @@ CxPlatSocketContextStartReceive(
         0,
         (void*)SocketContext);
     int Ret =
-        kevent(
+        ff_kevent(
             SocketContext->ProcContext->KqueueFd,
             &Event,
             1,
@@ -2156,7 +2159,7 @@ CxPlatSocketSendInternal(
         }
     }
 
-    SentByteCount = sendmsg(SocketContext->SocketFd, &Mhdr, 0);
+    SentByteCount = ff_sendmsg(SocketContext->SocketFd, &Mhdr, 0);
 
     if (SentByteCount < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -2173,7 +2176,7 @@ CxPlatSocketSendInternal(
             struct kevent Event = {0};
             EV_SET(&Event, SocketContext->SocketFd, EVFILT_WRITE, EV_ADD | EV_ONESHOT | EV_CLEAR, 0, 0, (void *)SocketContext);
             int Ret =
-                kevent(
+                ff_kevent(
                     SocketContext->ProcContext->KqueueFd,
                     &Event,
                     1,
@@ -2282,7 +2285,7 @@ CxPlatDataPathWake(
     CXPLAT_DATAPATH_PROC_CONTEXT* ProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT*)Context;
     struct kevent Event = {0};
     EV_SET(&Event, ProcContext->KqueueFd, EVFILT_USER, EV_ADD | EV_CLEAR, NOTE_TRIGGER, 0, NULL);
-    kevent(ProcContext->KqueueFd, &Event, 1, NULL, 0, NULL);
+    ff_kevent(ProcContext->KqueueFd, &Event, 1, NULL, 0, NULL);
 }
 
 BOOLEAN // Did work?
@@ -2310,7 +2313,7 @@ CxPlatDataPathRunEC(
 
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(
-            kevent(
+            ff_kevent(
                 Kqueue,
                 NULL,
                 0,

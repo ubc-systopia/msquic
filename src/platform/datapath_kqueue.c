@@ -818,39 +818,41 @@ CxPlatSocketContextInitialize(
 
     //
     // Set non blocking mode
-    //
-    Flags =
-        ff_fcntl(
-            SocketContext->SocketFd,
-            F_GETFL,
-            NULL);
-    if (Flags < 0) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "fcntl(F_GETFL) failed");
-        goto Exit;
-    }
+    // TODO(arun): I am replacing this with an alternate F-stack way of setting non-blocking mode.
+    int on = 1;
+    ff_ioctl(sockfd, FIONBIO, &on);
+    //Flags =
+    //    ff_fcntl(
+    //        SocketContext->SocketFd,
+    //        F_GETFL,
+    //        NULL);
+    //if (Flags < 0) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "fcntl(F_GETFL) failed");
+    //    goto Exit;
+    //}
 
-    Flags |= O_NONBLOCK;
-    Result =
-        ff_fcntl(
-            SocketContext->SocketFd,
-            F_SETFL,
-            Flags);
-    if (Result < 0) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "fcntl(F_SETFL) failed");
-        goto Exit;
-    }
+    //Flags |= O_NONBLOCK;
+    //Result =
+    //    ff_fcntl(
+    //        SocketContext->SocketFd,
+    //        F_SETFL,
+    //        Flags);
+    //if (Result < 0) {
+    //    Status = errno;
+    //    QuicTraceEvent(
+    //        DatapathErrorStatus,
+    //        "[data][%p] ERROR, %u, %s.",
+    //        Binding,
+    //        Status,
+    //        "fcntl(F_SETFL) failed");
+    //    goto Exit;
+    //}
 
     //
     // Set DON'T FRAG socket option.
@@ -1036,7 +1038,7 @@ CxPlatSocketContextInitialize(
 Exit:
 
     if (QUIC_FAILED(Status)) {
-        close(SocketContext->SocketFd);
+        ff_close(SocketContext->SocketFd);
         SocketContext->SocketFd = INVALID_SOCKET;
     }
 
@@ -1562,7 +1564,7 @@ Exit:
                 for (uint32_t i = 0; i < SocketCount; i++) {
                     CXPLAT_SOCKET_CONTEXT* SocketContext = &Binding->SocketContexts[i];
                     if (SocketContext->SocketFd != INVALID_SOCKET) {
-                        close(SocketContext->SocketFd);
+                        ff_close(SocketContext->SocketFd);
                     }
                     CxPlatRundownRelease(&Binding->Rundown);
                 }

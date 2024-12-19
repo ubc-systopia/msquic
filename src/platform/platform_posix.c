@@ -13,6 +13,7 @@ Environment:
 
 --*/
 
+#include "ff_api.h"
 #include "platform_internal.h"
 #include "quic_platform.h"
 #include "quic_trace.h"
@@ -644,7 +645,7 @@ CxPlatThreadCreate(
     CustomContext->Callback = Config->Callback;
     CustomContext->Context = Config->Context;
 
-    if (pthread_create(Thread, &Attr, CxPlatThreadCustomStart, CustomContext)) {
+    if (ff_pthread_create(Thread, &Attr, CxPlatThreadCustomStart, CustomContext)) {
         Status = errno;
         QuicTraceEvent(
             LibraryErrorStatus,
@@ -660,11 +661,11 @@ CxPlatThreadCreate(
     // If pthread_create fails with an error code, then try again without the attribute
     // because the CPU might be offline.
     //
-    if (pthread_create(Thread, &Attr, Config->Callback, Config->Context)) {
+    if (ff_pthread_create(Thread, &Attr, Config->Callback, Config->Context)) {
         QuicTraceLogWarning(
             PlatformThreadCreateFailed,
             "[ lib] pthread_create failed, retrying without affinitization");
-        if (pthread_create(Thread, NULL, Config->Callback, Config->Context)) {
+        if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context)) {
             Status = errno;
             QuicTraceEvent(
                 LibraryErrorStatus,
@@ -796,7 +797,7 @@ CxPlatThreadWait(
     )
 {
     CXPLAT_DBG_ASSERT(pthread_equal(*Thread, pthread_self()) == 0);
-    CXPLAT_FRE_ASSERT(pthread_join(*Thread, NULL) == 0);
+    CXPLAT_FRE_ASSERT(ff_pthread_join(*Thread, NULL) == 0);
 }
 
 CXPLAT_THREAD_ID

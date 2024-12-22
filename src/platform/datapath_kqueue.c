@@ -20,6 +20,7 @@ Environment:
 
 #include "platform_internal.h"
 #include <fcntl.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -764,7 +765,6 @@ CxPlatSocketContextInitialize(
     QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
     int Result = 0;
     int Option = 0;
-    int Flags = 0;
     int ForceIpv4 = RemoteAddress && RemoteAddress->Ip.sa_family == QUIC_ADDRESS_FAMILY_INET;
     QUIC_ADDR MappedAddress = {0};
     socklen_t AssignedLocalAddressLength = 0;
@@ -820,7 +820,7 @@ CxPlatSocketContextInitialize(
     // Set non blocking mode
     // TODO(arun): I am replacing this with an alternate F-stack way of setting non-blocking mode.
     int on = 1;
-    ff_ioctl(sockfd, FIONBIO, &on);
+    ff_ioctl(SocketContext->SocketFd, FIONBIO, &on);
     //Flags =
     //    ff_fcntl(
     //        SocketContext->SocketFd,

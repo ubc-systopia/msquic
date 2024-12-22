@@ -938,6 +938,14 @@ CxPlatThreadCreate(
     _Out_ CXPLAT_THREAD* Thread
     );
 
+QUIC_STATUS
+CxPlatFfThreadCreate(
+    _In_ CXPLAT_THREAD_CONFIG* Config,
+    _Out_ CXPLAT_THREAD* Thread
+    );
+
+
+
 void
 CxPlatThreadDelete(
     _Inout_ CXPLAT_THREAD* Thread
@@ -947,6 +955,12 @@ void
 CxPlatThreadWait(
     _Inout_ CXPLAT_THREAD* Thread
     );
+
+void
+CxPlatFfThreadWait(
+    _Inout_ CXPLAT_THREAD* Thread
+    );
+
 
 typedef uint32_t CXPLAT_THREAD_ID;
 

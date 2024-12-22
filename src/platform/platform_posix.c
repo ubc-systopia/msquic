@@ -584,7 +584,7 @@ CxPlatGetAllocFailDenominator(
 #if defined(CX_PLATFORM_LINUX)
 
 QUIC_STATUS
-CxPlatThreadCreate(
+CxPlatFfThreadCreate(
     _In_ CXPLAT_THREAD_CONFIG* Config,
     _Out_ CXPLAT_THREAD* Thread
     )
@@ -651,7 +651,7 @@ CxPlatThreadCreate(
             LibraryErrorStatus,
             "[ lib] ERROR, %u, %s.",
             Status,
-            "pthread_create failed");
+            "ff_pthread_create failed");
         CXPLAT_FREE(CustomContext, QUIC_POOL_CUSTOM_THREAD);
     }
 
@@ -666,6 +666,123 @@ CxPlatThreadCreate(
             PlatformThreadCreateFailed,
             "[ lib] pthread_create failed, retrying without affinitization");
         if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context)) {
+            Status = errno;
+            QuicTraceEvent(
+                LibraryErrorStatus,
+                "[ lib] ERROR, %u, %s.",
+                Status,
+                "pthread_create failed");
+        }
+    }
+
+#endif // !CXPLAT_USE_CUSTOM_THREAD_CONTEXT
+
+#if !defined(__GLIBC__) && !defined(__ANDROID__)
+    if (Status == QUIC_STATUS_SUCCESS) {
+        if (Config->Flags & CXPLAT_THREAD_FLAG_SET_AFFINITIZE) {
+            cpu_set_t CpuSet;
+            CPU_ZERO(&CpuSet);
+            CPU_SET(Config->IdealProcessor, &CpuSet);
+            if (pthread_setaffinity_np(*Thread, sizeof(CpuSet), &CpuSet)) {
+                QuicTraceEvent(
+                    LibraryError,
+                    "[ lib] ERROR, %s.",
+                    "pthread_setaffinity_np failed");
+            }
+        } else {
+            // TODO - Set Linux equivalent of NUMA affinity.
+        }
+    }
+#endif
+
+    pthread_attr_destroy(&Attr);
+
+    return Status;
+}
+
+QUIC_STATUS
+CxPlatThreadCreate(
+    _In_ CXPLAT_THREAD_CONFIG* Config,
+    _Out_ CXPLAT_THREAD* Thread
+    )
+{
+    QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
+
+    pthread_attr_t Attr;
+    if (pthread_attr_init(&Attr)) {
+        QuicTraceEvent(
+            LibraryErrorStatus,
+            "[ lib] ERROR, %u, %s.",
+            errno,
+            "pthread_attr_init failed");
+        return errno;
+    }
+
+#ifdef __GLIBC__
+    if (Config->Flags & CXPLAT_THREAD_FLAG_SET_AFFINITIZE) {
+        cpu_set_t CpuSet;
+        CPU_ZERO(&CpuSet);
+        CPU_SET(Config->IdealProcessor, &CpuSet);
+        if (pthread_attr_setaffinity_np(&Attr, sizeof(CpuSet), &CpuSet)) {
+            QuicTraceEvent(
+                LibraryError,
+                "[ lib] ERROR, %s.",
+                "pthread_attr_setaffinity_np failed");
+        }
+    } else {
+        // TODO - Set Linux equivalent of NUMA affinity.
+    }
+    // There is no way to set an ideal processor in Linux.
+#endif
+
+    if (Config->Flags & CXPLAT_THREAD_FLAG_HIGH_PRIORITY) {
+        struct sched_param Params;
+        Params.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (pthread_attr_setschedparam(&Attr, &Params)) {
+            QuicTraceEvent(
+                LibraryErrorStatus,
+                "[ lib] ERROR, %u, %s.",
+                errno,
+                "pthread_attr_setschedparam failed");
+        }
+    }
+
+#ifdef CXPLAT_USE_CUSTOM_THREAD_CONTEXT
+
+    CXPLAT_THREAD_CUSTOM_CONTEXT* CustomContext =
+        CXPLAT_ALLOC_NONPAGED(sizeof(CXPLAT_THREAD_CUSTOM_CONTEXT), QUIC_POOL_CUSTOM_THREAD);
+    if (CustomContext == NULL) {
+        Status = QUIC_STATUS_OUT_OF_MEMORY;
+        QuicTraceEvent(
+            AllocFailure,
+            "Allocation of '%s' failed. (%llu bytes)",
+            "Custom thread context",
+            sizeof(CXPLAT_THREAD_CUSTOM_CONTEXT));
+    }
+    CustomContext->Callback = Config->Callback;
+    CustomContext->Context = Config->Context;
+
+    if (pthread_create(Thread, &Attr, CxPlatThreadCustomStart, CustomContext)) {
+        Status = errno;
+        QuicTraceEvent(
+            LibraryErrorStatus,
+            "[ lib] ERROR, %u, %s.",
+            Status,
+            "pthread_create failed");
+        CXPLAT_FREE(CustomContext, QUIC_POOL_CUSTOM_THREAD);
+    }
+
+#else // CXPLAT_USE_CUSTOM_THREAD_CONTEXT
+
+    //
+    // If pthread_create fails with an error code, then try again without the attribute
+    // because the CPU might be offline.
+    //
+    if (pthread_create(Thread, &Attr, Config->Callback, Config->Context)) {
+        QuicTraceLogWarning(
+            PlatformThreadCreateFailed,
+            "[ lib] pthread_create failed, retrying without affinitization");
+        if (pthread_create(Thread, NULL, Config->Callback, Config->Context)) {
             Status = errno;
             QuicTraceEvent(
                 LibraryErrorStatus,
@@ -797,8 +914,18 @@ CxPlatThreadWait(
     )
 {
     CXPLAT_DBG_ASSERT(pthread_equal(*Thread, pthread_self()) == 0);
+    CXPLAT_FRE_ASSERT(pthread_join(*Thread, NULL) == 0);
+}
+
+void
+CxPlatFfThreadWait(
+    _Inout_ CXPLAT_THREAD* Thread
+    )
+{
+    CXPLAT_DBG_ASSERT(pthread_equal(*Thread, pthread_self()) == 0);
     CXPLAT_FRE_ASSERT(ff_pthread_join(*Thread, NULL) == 0);
 }
+
 
 CXPLAT_THREAD_ID
 CxPlatCurThreadID(

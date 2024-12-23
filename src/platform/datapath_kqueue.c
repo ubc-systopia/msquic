@@ -30,6 +30,8 @@ Environment:
 
 struct NetShaperTimestamping g_NetShaperDebug = {};
 
+pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
 
@@ -771,6 +773,8 @@ CxPlatSocketContextInitialize(
 
     CXPLAT_SOCKET* Binding = SocketContext->Binding;
 
+    pthread_mutex_lock(&socket_mutex);
+
     //
     // Create datagram socket. We will use dual-mode sockets everywhere when we can.
     // There is problem with receiving PKTINFO on dual-mode when binded and connect to IP4 endpoints.
@@ -1041,6 +1045,8 @@ Exit:
         ff_close(SocketContext->SocketFd);
         SocketContext->SocketFd = INVALID_SOCKET;
     }
+
+    pthread_mutex_unlock(&socket_mutex);
 
     return Status;
 }
@@ -2313,6 +2319,8 @@ CxPlatDataPathRunEC(
         Timeout.tv_nsec += ((WaitTime % CXPLAT_MS_PER_SECOND) * CXPLAT_NANOSEC_PER_MS);
     }
 
+    pthread_mutex_lock(&socket_mutex);
+
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(
             ff_kevent(
@@ -2326,10 +2334,12 @@ CxPlatDataPathRunEC(
     if (ProcContext->Datapath->Shutdown) {
         *Context = NULL;
         CxPlatEventSet(ProcContext->CompletionEvent);
+        pthread_mutex_unlock(&socket_mutex);
         return TRUE;
     }
 
     if (ReadyEventCount == 0) {
+        pthread_mutex_unlock(&socket_mutex);
         return TRUE; // Wake for timeout.
     }
 
@@ -2340,5 +2350,6 @@ CxPlatDataPathRunEC(
         }
     }
 
+    pthread_mutex_unlock(&socket_mutex);
     return TRUE;
 }

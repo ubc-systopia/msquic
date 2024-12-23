@@ -107,6 +107,7 @@ option(QUIC_DISABLE_POSIX_GSO "Disable GSO for systems that say they support it 
 option(QUIC_OFFICIAL_RELEASE "Configured the build for an official release" OFF)
 set(QUIC_FOLDER_PREFIX "" CACHE STRING "Optional prefix for source group folders when using an IDE generator")
 set(QUIC_LIBRARY_NAME "msquic" CACHE STRING "Override the output library name")
+option(FSTACK_BUILD "Build with F-Stack" ON)
 
 if (QUIC_GAMECORE_BUILD)
     if(${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION} VERSION_LESS "10.0.20348.0")
@@ -578,6 +579,10 @@ else() #!WIN32
         list(APPEND QUIC_COMMON_DEFINES CX_PLATFORM_LINUX)
         message(STATUS "Enabling shared ephemeral port work around")
         list(APPEND QUIC_COMMON_DEFINES QUIC_SHARED_EPHEMERAL_WORKAROUND)
+    endif()
+
+    if (FSTACK_BUILD)
+        list(APPEND QUIC_COMMON_DEFINES FSTACK_BUILD)
     endif()
 
     if (QUIC_DISABLE_POSIX_GSO)

@@ -114,7 +114,7 @@ QuicWorkerInitialize(
         Worker
     };
 
-    Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
+    Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
     if (QUIC_FAILED(Status)) {
         QuicTraceEvent(
             WorkerErrorStatus,
@@ -162,7 +162,7 @@ QuicWorkerUninitialize(
     // Wait for the thread to finish.
     //
     if (Worker->Thread) {
-        CxPlatThreadWait(&Worker->Thread);
+        CxPlatFfThreadWait(&Worker->Thread);
         CxPlatThreadDelete(&Worker->Thread);
     }
     CxPlatEventUninitialize(Worker->Ready);

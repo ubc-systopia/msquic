@@ -145,7 +145,7 @@ CxPlatWorkersInit(
         ThreadConfig.IdealProcessor = (uint16_t)i;
         ThreadConfig.Context = &CxPlatWorkers[i];
         if (QUIC_FAILED(
-            CxPlatThreadCreate(&ThreadConfig, &CxPlatWorkers[i].Thread))) {
+            CxPlatFfThreadCreate(&ThreadConfig, &CxPlatWorkers[i].Thread))) {
             CxPlatWorkers[i].Running = FALSE;
             goto Error;
         }
@@ -158,7 +158,7 @@ Error:
     for (uint32_t i = 0; i < CxPlatWorkerCount && CxPlatWorkers[i].Running; ++i) {
         CxPlatWorkers[i].Running = FALSE;
         CxPlatEventSet(CxPlatWorkers[i].WakeEvent);
-        CxPlatThreadWait(&CxPlatWorkers[i].Thread);
+        CxPlatFfThreadWait(&CxPlatWorkers[i].Thread);
         CxPlatThreadDelete(&CxPlatWorkers[i].Thread);
 #ifdef QUIC_USE_EXECUTION_CONTEXTS
         CxPlatLockUninitialize(&CxPlatWorkers[i].ECLock);

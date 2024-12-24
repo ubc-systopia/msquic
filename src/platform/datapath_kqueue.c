@@ -30,7 +30,10 @@ Environment:
 
 struct NetShaperTimestamping g_NetShaperDebug = {};
 
-pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t initialization_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t initialization_cv = PTHREAD_COND_INITIALIZER;
+
+static bool initialized = false;
 
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
@@ -773,8 +776,6 @@ CxPlatSocketContextInitialize(
 
     CXPLAT_SOCKET* Binding = SocketContext->Binding;
 
-    pthread_mutex_lock(&socket_mutex);
-
     //
     // Create datagram socket. We will use dual-mode sockets everywhere when we can.
     // There is problem with receiving PKTINFO on dual-mode when binded and connect to IP4 endpoints.
@@ -870,22 +871,25 @@ CxPlatSocketContextInitialize(
     // Set socket option to receive ancillary data about the incoming packets.
     //
     Option = TRUE;
-    Result =
-        ff_setsockopt(
-            SocketContext->SocketFd,
-            ForceIpv4 ? IPPROTO_IP : IPPROTO_IPV6,
-            ForceIpv4 ? IP_PKTINFO : IPV6_RECVPKTINFO,
-            (const void*)&Option,
-            sizeof(Option));
-    if (Result == SOCKET_ERROR) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "setsockopt(IPV6_RECVPKTINFO) failed");
-        goto Exit;
+    if (!ForceIpv4)
+    {
+        Result =
+            ff_setsockopt(
+                SocketContext->SocketFd,
+                IPPROTO_IPV6,
+                IPV6_RECVPKTINFO,
+                (const void*)&Option,
+                sizeof(Option));
+        if (Result == SOCKET_ERROR) {
+            Status = errno;
+            QuicTraceEvent(
+                DatapathErrorStatus,
+                "[data][%p] ERROR, %u, %s.",
+                Binding,
+                Status,
+                "setsockopt(IPV6_RECVPKTINFO) failed");
+            goto Exit;
+        }
     }
 
     //
@@ -1046,8 +1050,6 @@ Exit:
         SocketContext->SocketFd = INVALID_SOCKET;
     }
 
-    pthread_mutex_unlock(&socket_mutex);
-
     return Status;
 }
 
@@ -1170,6 +1172,11 @@ CxPlatSocketContextStartReceive(
 
         goto Error;
     }
+
+    pthread_mutex_lock(&initialization_mutex);
+    initialized = true;
+    pthread_mutex_unlock(&initialization_mutex);
+    pthread_cond_signal(&initialization_cv);
 
 Error:
 
@@ -2319,7 +2326,11 @@ CxPlatDataPathRunEC(
         Timeout.tv_nsec += ((WaitTime % CXPLAT_MS_PER_SECOND) * CXPLAT_NANOSEC_PER_MS);
     }
 
-    pthread_mutex_lock(&socket_mutex);
+    pthread_mutex_lock(&initialization_mutex);
+    while (!initialized) {
+        pthread_cond_wait(&initialization_cv, &initialization_mutex);
+    }
+    pthread_mutex_unlock(&initialization_mutex);
 
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(
@@ -2334,12 +2345,10 @@ CxPlatDataPathRunEC(
     if (ProcContext->Datapath->Shutdown) {
         *Context = NULL;
         CxPlatEventSet(ProcContext->CompletionEvent);
-        pthread_mutex_unlock(&socket_mutex);
         return TRUE;
     }
 
     if (ReadyEventCount == 0) {
-        pthread_mutex_unlock(&socket_mutex);
         return TRUE; // Wake for timeout.
     }
 
@@ -2350,6 +2359,5 @@ CxPlatDataPathRunEC(
         }
     }
 
-    pthread_mutex_unlock(&socket_mutex);
     return TRUE;
 }

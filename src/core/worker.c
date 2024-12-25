@@ -717,25 +717,18 @@ QuicWorkerLoop(
     return TRUE;
 }
 
-#ifndef QUIC_USE_EXECUTION_CONTEXTS
-CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
+void ff_callback(CXPLAT_EXECUTION_CONTEXT* EC)
 {
-    QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
     CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
     const CXPLAT_THREAD_ID ThreadID = CxPlatCurThreadID();
 
-    QuicTraceEvent(
-        WorkerStart,
-        "[wrkr][%p] Start",
-        Worker);
-
     uint64_t TimeNow = CxPlatTimeUs64();
-    while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
+
+    if (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
         BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);
         if (!Ready) {
             if (EC->NextTimeUs == UINT64_MAX) {
                 CxPlatEventWaitForever(Worker->Ready);
-                TimeNow = CxPlatTimeUs64();
 
             } else if (EC->NextTimeUs > TimeNow) {
                 uint64_t Delay = US_TO_MS(EC->NextTimeUs - TimeNow) + 1;
@@ -743,10 +736,44 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
                     Delay = UINT32_MAX - 1; // Max has special meaning for most platforms.
                 }
                 CxPlatEventWaitWithTimeout(Worker->Ready, (uint32_t)Delay);
-                TimeNow = CxPlatTimeUs64();
             }
         }
+    } else {
+        ff_dpdk_stop();
     }
+}
+
+#ifndef QUIC_USE_EXECUTION_CONTEXTS
+CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
+{
+    QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
+    CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
+    //const CXPLAT_THREAD_ID ThreadID = CxPlatCurThreadID();
+
+    QuicTraceEvent(
+        WorkerStart,
+        "[wrkr][%p] Start",
+        Worker);
+
+    ff_dpdk_run(ff_callback, EC);
+    //uint64_t TimeNow = CxPlatTimeUs64();
+    //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
+    //    BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);
+    //    if (!Ready) {
+    //        if (EC->NextTimeUs == UINT64_MAX) {
+    //            CxPlatEventWaitForever(Worker->Ready);
+    //            TimeNow = CxPlatTimeUs64();
+
+    //        } else if (EC->NextTimeUs > TimeNow) {
+    //            uint64_t Delay = US_TO_MS(EC->NextTimeUs - TimeNow) + 1;
+    //            if (Delay >= (uint64_t)UINT32_MAX) {
+    //                Delay = UINT32_MAX - 1; // Max has special meaning for most platforms.
+    //            }
+    //            CxPlatEventWaitWithTimeout(Worker->Ready, (uint32_t)Delay);
+    //            TimeNow = CxPlatTimeUs64();
+    //        }
+    //    }
+    //}
 
     QuicTraceEvent(
         WorkerStop,

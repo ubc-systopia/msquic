@@ -37,6 +37,7 @@ QuicWorkerLoop(
 // Thread callback for processing the work queued for the worker.
 //
 CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context);
+int ff_callback(void *Context);
 #endif
 
 void
@@ -107,24 +108,26 @@ QuicWorkerInitialize(
     UNREFERENCED_PARAMETER(ThreadFlags);
     CxPlatAddExecutionContext(&Worker->ExecutionContext, IdealProcessor);
 #else
-    CXPLAT_THREAD_CONFIG ThreadConfig = {
-        ThreadFlags,
-        IdealProcessor,
-        "quic_worker",
-        QuicWorkerThread,
-        Worker
-    };
+    (void) ThreadFlags; 
+    //CXPLAT_THREAD_CONFIG ThreadConfig = {
+    //    ThreadFlags,
+    //    IdealProcessor,
+    //    "quic_worker",
+    //    QuicWorkerThread,
+    //    Worker
+    //};
 
-    Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
-    if (QUIC_FAILED(Status)) {
-        QuicTraceEvent(
-            WorkerErrorStatus,
-            "[wrkr][%p] ERROR, %u, %s.",
-            Worker,
-            Status,
-            "CxPlatThreadCreate");
-        goto Error;
-    }
+    ff_run(ff_callback, Worker);
+    //Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
+    //if (QUIC_FAILED(Status)) {
+    //    QuicTraceEvent(
+    //        WorkerErrorStatus,
+    //        "[wrkr][%p] ERROR, %u, %s.",
+    //        Worker,
+    //        Status,
+    //        "CxPlatThreadCreate");
+    //    goto Error;
+    //}
 #endif // QUIC_USE_EXECUTION_CONTEXTS
 
 Error:

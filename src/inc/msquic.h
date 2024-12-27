@@ -80,12 +80,6 @@ struct NetShaperTimestamping {
 
 extern struct NetShaperTimestamping g_NetShaperDebug;
 
-struct FstackArgs {
-    int argc;
-    char **argv;
-};
-extern struct FstackArgs g_FstackArgs;
-
 typedef enum QUIC_TLS_PROVIDER {
     QUIC_TLS_PROVIDER_SCHANNEL                  = 0x0000,
     QUIC_TLS_PROVIDER_OPENSSL                   = 0x0001,

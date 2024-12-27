@@ -23,6 +23,7 @@ Abstract:
 #ifdef QUIC_CLOG
 #include "worker.c.clog.h"
 #endif
+#include "ff_api.h"
 
 BOOLEAN
 QuicWorkerLoop(
@@ -717,8 +718,9 @@ QuicWorkerLoop(
     return TRUE;
 }
 
-void ff_callback(CXPLAT_EXECUTION_CONTEXT* EC)
+int ff_callback(void *Context)
 {
+    QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
     CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
     const CXPLAT_THREAD_ID ThreadID = CxPlatCurThreadID();
 
@@ -739,15 +741,17 @@ void ff_callback(CXPLAT_EXECUTION_CONTEXT* EC)
             }
         }
     } else {
-        ff_dpdk_stop();
+        ff_stop_run();
     }
+
+    return 0;
 }
 
 #ifndef QUIC_USE_EXECUTION_CONTEXTS
 CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
 {
     QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
-    CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
+    //CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
     //const CXPLAT_THREAD_ID ThreadID = CxPlatCurThreadID();
 
     QuicTraceEvent(
@@ -755,7 +759,7 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         "[wrkr][%p] Start",
         Worker);
 
-    ff_dpdk_run(ff_callback, EC);
+    ff_run(ff_callback, Context);
     //uint64_t TimeNow = CxPlatTimeUs64();
     //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
     //    BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);

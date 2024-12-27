@@ -25,6 +25,8 @@ Abstract:
 #endif
 #include "ff_api.h"
 
+struct FstackArgs g_FstackArgs = {0, NULL};
+
 BOOLEAN
 QuicWorkerLoop(
     _Inout_ struct CXPLAT_EXECUTION_CONTEXT* Context,
@@ -750,6 +752,8 @@ int ff_callback(void *Context)
 #ifndef QUIC_USE_EXECUTION_CONTEXTS
 CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
 {
+    assert(ff_init(g_FstackArgs.argc, g_FstackArgs.argv) == 0);
+
     QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
     //CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
     //const CXPLAT_THREAD_ID ThreadID = CxPlatCurThreadID();

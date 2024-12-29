@@ -111,25 +111,25 @@ QuicWorkerInitialize(
     CxPlatAddExecutionContext(&Worker->ExecutionContext, IdealProcessor);
 #else
     (void) ThreadFlags;
-    //CXPLAT_THREAD_CONFIG ThreadConfig = {
-    //    ThreadFlags,
-    //    IdealProcessor,
-    //    "quic_worker",
-    //    QuicWorkerThread,
-    //    Worker
-    //};
+    CXPLAT_THREAD_CONFIG ThreadConfig = {
+        ThreadFlags,
+        IdealProcessor,
+        "quic_worker",
+        QuicWorkerThread,
+        Worker
+    };
 
-    ff_run(ff_callback, Worker, false);
-    //Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
-    //if (QUIC_FAILED(Status)) {
-    //    QuicTraceEvent(
-    //        WorkerErrorStatus,
-    //        "[wrkr][%p] ERROR, %u, %s.",
-    //        Worker,
-    //        Status,
-    //        "CxPlatThreadCreate");
-    //    goto Error;
-    //}
+    //ff_run(ff_callback, Worker, false);
+    Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
+    if (QUIC_FAILED(Status)) {
+        QuicTraceEvent(
+            WorkerErrorStatus,
+            "[wrkr][%p] ERROR, %u, %s.",
+            Worker,
+            Status,
+            "CxPlatThreadCreate");
+        goto Error;
+    }
 #endif // QUIC_USE_EXECUTION_CONTEXTS
 
 Error:
@@ -765,6 +765,7 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         Worker);
 
     //assert(ff_init(g_FstackArgs.argc, g_FstackArgs.argv) == 0);
+    assert(ff_init_dpdk() == 0);
     ff_run(ff_callback, Context, false);
     //uint64_t TimeNow = CxPlatTimeUs64();
     //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {

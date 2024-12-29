@@ -117,7 +117,7 @@ QuicWorkerInitialize(
     //    Worker
     //};
 
-    ff_run(ff_callback, Worker);
+    ff_run(ff_callback, Worker, false);
     //Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
     //if (QUIC_FAILED(Status)) {
     //    QuicTraceEvent(
@@ -762,7 +762,7 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         "[wrkr][%p] Start",
         Worker);
 
-    ff_run(ff_callback, Context);
+    ff_run(ff_callback, Context, false);
     //uint64_t TimeNow = CxPlatTimeUs64();
     //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
     //    BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);

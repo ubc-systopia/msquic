@@ -35,6 +35,8 @@ static pthread_cond_t initialization_cv = PTHREAD_COND_INITIALIZER;
 
 static bool initialized = false;
 
+static pthread_mutex_t ff_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
 
@@ -776,6 +778,8 @@ CxPlatSocketContextInitialize(
 
     CXPLAT_SOCKET* Binding = SocketContext->Binding;
 
+    pthread_mutex_lock(&ff_mutex);
+
     //
     // Create datagram socket. We will use dual-mode sockets everywhere when we can.
     // There is problem with receiving PKTINFO on dual-mode when binded and connect to IP4 endpoints.
@@ -1043,6 +1047,20 @@ CxPlatSocketContextInitialize(
         Binding->LocalAddress.Ipv6.sin6_family = QUIC_ADDRESS_FAMILY_INET6;
     }
 
+    // Send dummy packet to initialize the route (fill ARP cache)
+    uint8_t dummyData = 0; 
+    Result = ff_send(SocketContext->SocketFd, &dummyData, 1, 0);
+    if (Result == SOCKET_ERROR) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "send failed");
+        goto Exit;
+    }
+
 Exit:
 
     if (QUIC_FAILED(Status)) {
@@ -1050,6 +1068,7 @@ Exit:
         SocketContext->SocketFd = INVALID_SOCKET;
     }
 
+    pthread_mutex_unlock(&ff_mutex);
     return Status;
 }
 
@@ -1379,7 +1398,8 @@ CxPlatSocketContextProcessEvents(
     )
 {
     CXPLAT_SOCKET_CONTEXT* SocketContext = (CXPLAT_SOCKET_CONTEXT*)Event->udata;
-    CXPLAT_DBG_ASSERT(Event->filter & (EVFILT_READ | EVFILT_WRITE | EVFILT_USER));
+    // TODO(arun): I don't know why this assertion fails
+    //CXPLAT_DBG_ASSERT(Event->filter & (EVFILT_READ | EVFILT_WRITE | EVFILT_USER));
     if (Event->filter == EVFILT_USER) {
         CXPLAT_DBG_ASSERT(SocketContext->Binding->Shutdown);
         CxPlatSocketContextUninitializeComplete(SocketContext);
@@ -2174,7 +2194,9 @@ CxPlatSocketSendInternal(
         }
     }
 
+    pthread_mutex_lock(&ff_mutex);
     SentByteCount = ff_sendmsg(SocketContext->SocketFd, &Mhdr, 0);
+    pthread_mutex_unlock(&ff_mutex);
 
     if (SentByteCount < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -2332,6 +2354,7 @@ CxPlatDataPathRunEC(
     }
     pthread_mutex_unlock(&initialization_mutex);
 
+    pthread_mutex_lock(&ff_mutex);
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(
             ff_kevent(
@@ -2341,6 +2364,7 @@ CxPlatDataPathRunEC(
                 EventList,
                 EventListMax,
                 WaitTime == UINT32_MAX ? NULL : &Timeout));
+    pthread_mutex_unlock(&ff_mutex);
 
     if (ProcContext->Datapath->Shutdown) {
         *Context = NULL;

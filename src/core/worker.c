@@ -25,6 +25,8 @@ Abstract:
 #endif
 #include "ff_api.h"
 
+struct FstackArgs g_FstackArgs = {0, NULL};
+
 BOOLEAN
 QuicWorkerLoop(
     _Inout_ struct CXPLAT_EXECUTION_CONTEXT* Context,
@@ -108,7 +110,7 @@ QuicWorkerInitialize(
     UNREFERENCED_PARAMETER(ThreadFlags);
     CxPlatAddExecutionContext(&Worker->ExecutionContext, IdealProcessor);
 #else
-    (void) ThreadFlags; 
+    (void) ThreadFlags;
     //CXPLAT_THREAD_CONFIG ThreadConfig = {
     //    ThreadFlags,
     //    IdealProcessor,
@@ -118,7 +120,7 @@ QuicWorkerInitialize(
     //};
 
     ff_run(ff_callback, Worker, false);
-    //Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
+    //Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
     //if (QUIC_FAILED(Status)) {
     //    QuicTraceEvent(
     //        WorkerErrorStatus,
@@ -166,7 +168,7 @@ QuicWorkerUninitialize(
     // Wait for the thread to finish.
     //
     if (Worker->Thread) {
-        CxPlatFfThreadWait(&Worker->Thread);
+        CxPlatThreadWait(&Worker->Thread);
         CxPlatThreadDelete(&Worker->Thread);
     }
     CxPlatEventUninitialize(Worker->Ready);
@@ -762,6 +764,7 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         "[wrkr][%p] Start",
         Worker);
 
+    //assert(ff_init(g_FstackArgs.argc, g_FstackArgs.argv) == 0);
     ff_run(ff_callback, Context, false);
     //uint64_t TimeNow = CxPlatTimeUs64();
     //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {

@@ -257,10 +257,10 @@ QuicAddrCompare(
     _In_ const QUIC_ADDR* const Addr2
     )
 {
-    if (Addr1->Ip.sa_family != Addr2->Ip.sa_family ||
-        Addr1->Ipv4.sin_port != Addr2->Ipv4.sin_port) {
-        return FALSE;
-    }
+    //if (Addr1->Ip.sa_family != Addr2->Ip.sa_family ||
+    //    Addr1->Ipv4.sin_port != Addr2->Ipv4.sin_port) {
+    //    return FALSE;
+    //}
 
     if (QUIC_ADDRESS_FAMILY_INET == Addr1->Ip.sa_family) {
         return memcmp(&Addr1->Ipv4.sin_addr, &Addr2->Ipv4.sin_addr, sizeof(IN_ADDR)) == 0;

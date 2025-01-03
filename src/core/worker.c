@@ -766,7 +766,8 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
 
     //assert(ff_init(g_FstackArgs.argc, g_FstackArgs.argv) == 0);
     assert(ff_init_dpdk() == 0);
-    ff_run(ff_callback, Context, false);
+    //ff_run(ff_callback, Context, true);
+    ff_run(ff_callback, Context);
     //uint64_t TimeNow = CxPlatTimeUs64();
     //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
     //    BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);

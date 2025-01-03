@@ -16,6 +16,8 @@ Environment:
 #define __APPLE_USE_RFC_3542 1
 // See netinet6/in6.h:46 for an explanation
 
+#define IP_RECVDSTADDR 7
+
 #include "ff_api.h"
 
 #include "platform_internal.h"
@@ -896,6 +898,23 @@ CxPlatSocketContextInitialize(
         }
     }
 
+    Option = TRUE;
+    Result = ff_setsockopt(
+        SocketContext->SocketFd,
+        IPPROTO_IP,
+        IP_RECVDSTADDR,
+        &Option,
+        sizeof(Option));
+    if (Result == SOCKET_ERROR) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "setsockopt(IP_RECVDSTADDR) failed");
+    }
+
     //
     // Set socket option to receive TOS (= DSCP + ECN) information from the
     // incoming packet.
@@ -1258,10 +1277,16 @@ CxPlatSocketContextRecvComplete(
             } else if (CMsg->cmsg_type == IP_TOS || CMsg->cmsg_type == IP_RECVTOS) {
                 RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                 FoundTOS = TRUE; // cppcheck-suppress unreadVariable
+            } else if (CMsg->cmsg_type == IP_RECVDSTADDR) {
+                struct in_addr* Addr = (struct in_addr*)CMSG_DATA(CMsg);
+                LocalAddr->Ip.sa_family = QUIC_ADDRESS_FAMILY_INET;
+                LocalAddr->Ipv4.sin_addr = *Addr;
+                FoundLocalAddr = TRUE;
             }
         }
     }
 
+    // TODO(arun): IP_PKTINFO isn't supported on FreeBSD. Maybe this isn't necessary
     CXPLAT_FRE_ASSERT(FoundLocalAddr);
     CXPLAT_FRE_ASSERT(FoundTOS);
 
@@ -1414,7 +1439,7 @@ CxPlatSocketContextProcessEvents(
             CXPLAT_DBG_ASSERT(SocketContext->CurrentRecvBlock != NULL);
 
             ssize_t Ret =
-                recvmsg(
+                ff_recvmsg(
                     SocketContext->SocketFd,
                     &SocketContext->RecvMsgHdr,
                     0);
@@ -2099,7 +2124,7 @@ CxPlatSocketSendInternal(
         sizeof(struct in6_pktinfo) >= sizeof(struct in_pktinfo),
         "sizeof(struct in6_pktinfo) >= sizeof(struct in_pktinfo) failed");
 
-    char ControlBuffer[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int))] = {0};
+    char ControlBuffer[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int)) + CMSG_SPACE(sizeof(struct in_addr))] = {0};
 
     CXPLAT_DBG_ASSERT(Socket != NULL && RemoteAddress != NULL && SendData != NULL);
 

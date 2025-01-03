@@ -237,7 +237,7 @@ else()
                 endif()
                 list(APPEND OPENSSL_CONFIG_FLAGS -latomic)
             else()
-                set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/config
+                set(OPENSSL_CONFIG_CMD ${CMAKE_CURRENT_SOURCE_DIR}/openssl/config --debug
                             CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER})
             endif()
         endif()

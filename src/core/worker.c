@@ -23,6 +23,7 @@ Abstract:
 #ifdef QUIC_CLOG
 #include "worker.c.clog.h"
 #endif
+#include "../platform/platform_internal.h"
 #include "ff_api.h"
 
 struct FstackArgs g_FstackArgs = {0, NULL};
@@ -731,23 +732,27 @@ int ff_callback(void *Context)
 
     uint64_t TimeNow = CxPlatTimeUs64();
 
-    if (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
-        BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);
-        if (!Ready) {
-            if (EC->NextTimeUs == UINT64_MAX) {
-                CxPlatEventWaitForever(Worker->Ready);
+    //if (!QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
+    //    BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);
+    //    if (!Ready) {
+    //        if (EC->NextTimeUs == UINT64_MAX) {
+    //            CxPlatEventWaitForever(Worker->Ready);
 
-            } else if (EC->NextTimeUs > TimeNow) {
-                uint64_t Delay = US_TO_MS(EC->NextTimeUs - TimeNow) + 1;
-                if (Delay >= (uint64_t)UINT32_MAX) {
-                    Delay = UINT32_MAX - 1; // Max has special meaning for most platforms.
-                }
-                CxPlatEventWaitWithTimeout(Worker->Ready, (uint32_t)Delay);
-            }
-        }
-    } else {
+    //        } else if (EC->NextTimeUs > TimeNow) {
+    //            uint64_t Delay = US_TO_MS(EC->NextTimeUs - TimeNow) + 1;
+    //            if (Delay >= (uint64_t)UINT32_MAX) {
+    //                Delay = UINT32_MAX - 1; // Max has special meaning for most platforms.
+    //            }
+    //            CxPlatEventWaitWithTimeout(Worker->Ready, (uint32_t)Delay);
+    //        }
+    //    }
+    //} else {
+    //    ff_stop_run();
+    //}
+    if (!QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
         ff_stop_run();
     }
+    CxPlatWorkerReadEvents(0, ThreadID);
 
     return 0;
 }

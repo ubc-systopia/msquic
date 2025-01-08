@@ -37,8 +37,6 @@ static pthread_cond_t initialization_cv = PTHREAD_COND_INITIALIZER;
 
 static bool initialized = false;
 
-static pthread_mutex_t ff_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
 
@@ -184,7 +182,8 @@ typedef struct CXPLAT_SOCKET_CONTEXT {
     //
     char RecvMsgControl[CMSG_SPACE(sizeof(struct in6_pktinfo)) +
                         CMSG_SPACE(sizeof(struct in_pktinfo)) +
-                        2 * CMSG_SPACE(sizeof(int))];
+                        2 * CMSG_SPACE(sizeof(int)) +
+                        3 * CMSG_SPACE(sizeof(struct in_addr))];
 
     //
     // The buffer used to receive msg headers on socket.
@@ -780,8 +779,6 @@ CxPlatSocketContextInitialize(
 
     CXPLAT_SOCKET* Binding = SocketContext->Binding;
 
-    pthread_mutex_lock(&ff_mutex);
-
     //
     // Create datagram socket. We will use dual-mode sockets everywhere when we can.
     // There is problem with receiving PKTINFO on dual-mode when binded and connect to IP4 endpoints.
@@ -832,6 +829,7 @@ CxPlatSocketContextInitialize(
     // TODO(arun): I am replacing this with an alternate F-stack way of setting non-blocking mode.
     int on = 1;
     ff_ioctl(SocketContext->SocketFd, FIONBIO, &on);
+
     //Flags =
     //    ff_fcntl(
     //        SocketContext->SocketFd,
@@ -1087,7 +1085,6 @@ Exit:
         SocketContext->SocketFd = INVALID_SOCKET;
     }
 
-    pthread_mutex_unlock(&ff_mutex);
     return Status;
 }
 
@@ -1247,6 +1244,18 @@ CxPlatSocketContextRecvComplete(
 
     RecvPacket->TypeOfService = 0;
 
+    int ipv6_pktinfo = 0;
+    int ipv6_tclass = 0;
+    int ip_pktinfo = 0;
+    int ip_tos = 0;
+    int ip_recvdstaddr = 0;
+
+    int ipv6_pktinfo_size = 0;
+    int ipv6_tclass_size = 0;
+    int ip_pktinfo_size = 0;
+    int ip_tos_size = 0;
+    int ip_recvdstaddr_size = 0;
+
     struct cmsghdr *CMsg;
     for (CMsg = CMSG_FIRSTHDR(&SocketContext->RecvMsgHdr);
          CMsg != NULL;
@@ -1262,9 +1271,13 @@ CxPlatSocketContextRecvComplete(
 
                 LocalAddr->Ipv6.sin6_scope_id = PktInfo6->ipi6_ifindex;
                 FoundLocalAddr = TRUE; // cppcheck-suppress unreadVariable
+                ++ipv6_pktinfo;
+                ipv6_pktinfo_size += CMsg->cmsg_len;
             } else if (CMsg->cmsg_type == IPV6_TCLASS) {
                 RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                 FoundTOS = TRUE; // cppcheck-suppress unreadVariable
+                ++ipv6_tclass;
+                ipv6_tclass_size += CMsg->cmsg_len;
             }
         } else if (CMsg->cmsg_level == IPPROTO_IP) {
             if (CMsg->cmsg_type == IP_PKTINFO) {
@@ -1274,19 +1287,38 @@ CxPlatSocketContextRecvComplete(
                 LocalAddr->Ipv4.sin_port = SocketContext->Binding->LocalAddress.Ipv6.sin6_port;
                 LocalAddr->Ipv6.sin6_scope_id = PktInfo->ipi_ifindex;
                 FoundLocalAddr = TRUE;
+                ++ip_pktinfo;
+                ip_pktinfo_size += CMsg->cmsg_len;
             } else if (CMsg->cmsg_type == IP_TOS || CMsg->cmsg_type == IP_RECVTOS) {
                 RecvPacket->TypeOfService = *(uint8_t *)CMSG_DATA(CMsg);
                 FoundTOS = TRUE; // cppcheck-suppress unreadVariable
+                ++ip_tos;
+                ip_tos_size += CMsg->cmsg_len;
             } else if (CMsg->cmsg_type == IP_RECVDSTADDR) {
                 struct in_addr* Addr = (struct in_addr*)CMSG_DATA(CMsg);
                 LocalAddr->Ip.sa_family = QUIC_ADDRESS_FAMILY_INET;
                 LocalAddr->Ipv4.sin_addr = *Addr;
                 FoundLocalAddr = TRUE;
+                ++ip_recvdstaddr;
+                ip_recvdstaddr_size += CMsg->cmsg_len;
             }
         }
     }
 
     // TODO(arun): IP_PKTINFO isn't supported on FreeBSD. Maybe this isn't necessary
+    //bool drop_packet = false;
+    //if (!FoundLocalAddr || !FoundTOS) {
+    //    printf("BytesTransferred: %ld, Cmsg len: %ld, IP_PKTINFO: %d, IP_TOS: %d, IP_RECVTOS: %d, IP_RECVDSTADDR: %d, IPV6_PKTINFO: %d, IPV6_TCLASS: %d\n",
+    //        BytesTransferred, SocketContext->RecvMsgHdr.msg_controllen, ip_pktinfo, ip_tos, ip_tos, ip_recvdstaddr, ipv6_pktinfo, ipv6_tclass);
+    //    printf("IP_PKTINFO size: %d, IP_TOS size: %d, IP_RECVTOS size: %d, IP_RECVDSTADDR size: %d, IPV6_PKTINFO size: %d, IPV6_TCLASS size: %d\n",
+    //        ip_pktinfo_size, ip_tos_size, ip_tos_size, ip_recvdstaddr_size, ipv6_pktinfo_size, ipv6_tclass_size);
+    //    QuicTraceEvent(
+    //        DatapathError,
+    //        "[data][%p] ERROR, %s.",
+    //        SocketContext->Binding,
+    //        "Failed to get local address or TOS from ancillary data.");
+    //    drop_packet = true;
+    //}
     CXPLAT_FRE_ASSERT(FoundLocalAddr);
     CXPLAT_FRE_ASSERT(FoundTOS);
 
@@ -2219,9 +2251,7 @@ CxPlatSocketSendInternal(
         }
     }
 
-    pthread_mutex_lock(&ff_mutex);
     SentByteCount = ff_sendmsg(SocketContext->SocketFd, &Mhdr, 0);
-    pthread_mutex_unlock(&ff_mutex);
 
     if (SentByteCount < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -2379,7 +2409,6 @@ CxPlatDataPathRunEC(
     }
     pthread_mutex_unlock(&initialization_mutex);
 
-    pthread_mutex_lock(&ff_mutex);
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(
             ff_kevent(
@@ -2389,7 +2418,6 @@ CxPlatDataPathRunEC(
                 EventList,
                 EventListMax,
                 WaitTime == UINT32_MAX ? NULL : &Timeout));
-    pthread_mutex_unlock(&ff_mutex);
 
     if (ProcContext->Datapath->Shutdown) {
         *Context = NULL;

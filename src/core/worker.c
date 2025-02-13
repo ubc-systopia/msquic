@@ -121,7 +121,7 @@ QuicWorkerInitialize(
     };
 
     //ff_run(ff_callback, Worker, false);
-    Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread, 1);
+    Status = CxPlatFfThreadCreate(&ThreadConfig, true, &Worker->Thread);
     if (QUIC_FAILED(Status)) {
         QuicTraceEvent(
             WorkerErrorStatus,

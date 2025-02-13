@@ -941,6 +941,7 @@ CxPlatThreadCreate(
 QUIC_STATUS
 CxPlatFfThreadCreate(
     _In_ CXPLAT_THREAD_CONFIG* Config,
+    _In_ bool main_thread,
     _Out_ CXPLAT_THREAD* Thread
     );
 

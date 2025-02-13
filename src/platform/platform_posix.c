@@ -662,11 +662,11 @@ CxPlatFfThreadCreate(
     // If pthread_create fails with an error code, then try again without the attribute
     // because the CPU might be offline.
     //
-    if (ff_pthread_create(Thread, &Attr, Config->Callback, Config->Context)) {
+    if (ff_pthread_create(Thread, &Attr, Config->Callback, Config->Context, main_thread)) {
         QuicTraceLogWarning(
             PlatformThreadCreateFailed,
             "[ lib] pthread_create failed, retrying without affinitization");
-        if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context)) {
+        if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context, main_thread)) {
             Status = errno;
             QuicTraceEvent(
                 LibraryErrorStatus,

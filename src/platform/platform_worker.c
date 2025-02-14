@@ -15,6 +15,8 @@ Abstract:
 #include "platform_worker.c.clog.h"
 #endif
 
+#include "ff_api.h"
+
 typedef struct QUIC_CACHEALIGN CXPLAT_WORKER {
 
     //
@@ -127,13 +129,13 @@ CxPlatWorkersInit(
         return FALSE;
     }
 
-    //CXPLAT_THREAD_CONFIG ThreadConfig = {
-    //    CXPLAT_THREAD_FLAG_SET_AFFINITIZE,
-    //    0,
-    //    "cxplat_worker",
-    //    CxPlatWorkerThread,
-    //    NULL
-    //};
+    CXPLAT_THREAD_CONFIG ThreadConfig = {
+        CXPLAT_THREAD_FLAG_SET_AFFINITIZE,
+        0,
+        "cxplat_worker",
+        CxPlatWorkerThread,
+        NULL
+    };
 
     CxPlatZeroMemory(CxPlatWorkers, WorkersSize);
     for (uint32_t i = 0; i < CxPlatWorkerCount; ++i) {
@@ -142,35 +144,34 @@ CxPlatWorkersInit(
         CxPlatLockInitialize(&CxPlatWorkers[i].ECLock);
 #endif // QUIC_USE_EXECUTION_CONTEXTS
         CxPlatEventInitialize(&CxPlatWorkers[i].WakeEvent, FALSE, FALSE);
-        //ThreadConfig.IdealProcessor = (uint16_t)i;
-        //ThreadConfig.Context = &CxPlatWorkers[i];
-        // TODO(arun): maybe not necessary
-        //if (QUIC_FAILED(
-        //    CxPlatFfThreadCreate(&ThreadConfig, &CxPlatWorkers[i].Thread))) {
-        //    CxPlatWorkers[i].Running = FALSE;
-        //    goto Error;
-        //}
+        ThreadConfig.IdealProcessor = (uint16_t)i;
+        ThreadConfig.Context = &CxPlatWorkers[i];
+        if (QUIC_FAILED(
+            CxPlatFfThreadCreate(&ThreadConfig, &CxPlatWorkers[i].Thread, 0))) {
+            CxPlatWorkers[i].Running = FALSE;
+            goto Error;
+        }
     }
 
     return TRUE;
 
-//Error:
-//
-//    for (uint32_t i = 0; i < CxPlatWorkerCount && CxPlatWorkers[i].Running; ++i) {
-//        CxPlatWorkers[i].Running = FALSE;
-//        CxPlatEventSet(CxPlatWorkers[i].WakeEvent);
-//        CxPlatFfThreadWait(&CxPlatWorkers[i].Thread);
-//        CxPlatThreadDelete(&CxPlatWorkers[i].Thread);
-//#ifdef QUIC_USE_EXECUTION_CONTEXTS
-//        CxPlatLockUninitialize(&CxPlatWorkers[i].ECLock);
-//#endif // QUIC_USE_EXECUTION_CONTEXTS
-//        CxPlatEventUninitialize(CxPlatWorkers[i].WakeEvent);
-//    }
-//
-//    CXPLAT_FREE(CxPlatWorkers, QUIC_POOL_PLATFORM_WORKER);
-//    CxPlatWorkers = NULL;
-//
-//    return FALSE;
+Error:
+
+    for (uint32_t i = 0; i < CxPlatWorkerCount && CxPlatWorkers[i].Running; ++i) {
+        CxPlatWorkers[i].Running = FALSE;
+        CxPlatEventSet(CxPlatWorkers[i].WakeEvent);
+        CxPlatFfThreadWait(&CxPlatWorkers[i].Thread);
+        CxPlatThreadDelete(&CxPlatWorkers[i].Thread);
+#ifdef QUIC_USE_EXECUTION_CONTEXTS
+        CxPlatLockUninitialize(&CxPlatWorkers[i].ECLock);
+#endif // QUIC_USE_EXECUTION_CONTEXTS
+        CxPlatEventUninitialize(CxPlatWorkers[i].WakeEvent);
+    }
+
+    CXPLAT_FREE(CxPlatWorkers, QUIC_POOL_PLATFORM_WORKER);
+    CxPlatWorkers = NULL;
+
+    return FALSE;
 }
 #pragma warning(pop)
 
@@ -276,6 +277,20 @@ CxPlatRunExecutionContexts(
 //
 #define CXPLAT_WORKER_IDLE_WORK_THRESHOLD_COUNT 10
 
+int ff_platform_worker_callback(void *Context)
+{
+    CXPLAT_WORKER* Worker = (CXPLAT_WORKER*)Context;
+
+    uint32_t WaitTime = UINT32_MAX;
+
+    if (Worker->DatapathEC) {
+        if (CxPlatDataPathRunEC(&Worker->DatapathEC, Worker->ThreadId, WaitTime)) {
+        }
+    }
+
+    return 0;
+}
+
 CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
 {
     CXPLAT_WORKER* Worker = (CXPLAT_WORKER*)Context;
@@ -288,46 +303,49 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
 
     Worker->ThreadId = CxPlatCurThreadID();
 
-    uint32_t NoWorkCount = 0;
-    while (Worker->Running) {
+    ff_run(ff_platform_worker_callback, Worker);
 
-        uint32_t WaitTime = UINT32_MAX;
-        ++NoWorkCount;
-
-#ifdef QUIC_USE_EXECUTION_CONTEXTS
-        uint64_t TimeNow = CxPlatTimeUs64();
-        if (CxPlatRunExecutionContexts(Worker, &TimeNow)) {
-            NoWorkCount = 0;
-        }
-        if (Worker->ECsReady) {
-            WaitTime = 0;
-        } else if (Worker->ECsReadyTime != UINT64_MAX) {
-            uint64_t Diff = Worker->ECsReadyTime - TimeNow;
-            Diff = US_TO_MS(Diff);
-            if (Diff == 0) {
-                WaitTime = 1;
-            } else if (Diff < UINT32_MAX) {
-                WaitTime = (uint32_t)Diff;
-            } else {
-                WaitTime = UINT32_MAX-1;
-            }
-        }
-#endif
-
-        if (Worker->DatapathEC) {
-            if (CxPlatDataPathRunEC(&Worker->DatapathEC, Worker->ThreadId, WaitTime)) {
-                NoWorkCount = 0;
-            }
-        } else if (WaitTime != 0) {
-            CxPlatEventWaitWithTimeout(Worker->WakeEvent, WaitTime);
-            NoWorkCount = 0;
-        }
-
-        if (NoWorkCount > CXPLAT_WORKER_IDLE_WORK_THRESHOLD_COUNT) {
-            CxPlatSchedulerYield();
-            NoWorkCount = 0;
-        }
-    }
+//    uint32_t NoWorkCount = 0;
+//    while (Worker->Running) {
+//
+//        uint32_t WaitTime = UINT32_MAX;
+//        ++NoWorkCount;
+//
+//#ifdef QUIC_USE_EXECUTION_CONTEXTS
+//        uint64_t TimeNow = CxPlatTimeUs64();
+//        if (CxPlatRunExecutionContexts(Worker, &TimeNow)) {
+//            NoWorkCount = 0;
+//        }
+//        if (Worker->ECsReady) {
+//            WaitTime = 0;
+//        } else if (Worker->ECsReadyTime != UINT64_MAX) {
+//            uint64_t Diff = Worker->ECsReadyTime - TimeNow;
+//            Diff = US_TO_MS(Diff);
+//            if (Diff == 0) {
+//                WaitTime = 1;
+//            } else if (Diff < UINT32_MAX) {
+//                WaitTime = (uint32_t)Diff;
+//            } else {
+//                WaitTime = UINT32_MAX-1;
+//            }
+//        }
+//#endif
+//
+//        if (Worker->DatapathEC) {
+//            if (CxPlatDataPathRunEC(&Worker->DatapathEC, Worker->ThreadId, WaitTime)) {
+//                NoWorkCount = 0;
+//            }
+//        }
+//        //else if (WaitTime != 0) {
+//        //    CxPlatEventWaitWithTimeout(Worker->WakeEvent, WaitTime);
+//        //    NoWorkCount = 0;
+//        //}
+//
+//        //if (NoWorkCount > CXPLAT_WORKER_IDLE_WORK_THRESHOLD_COUNT) {
+//        //    CxPlatSchedulerYield();
+//        //    NoWorkCount = 0;
+//        //}
+//    }
 
     QuicTraceLogInfo(
         PlatformWorkerThreadStop,

@@ -121,7 +121,7 @@ QuicWorkerInitialize(
     };
 
     //ff_run(ff_callback, Worker, false);
-    Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
+    Status = CxPlatFfThreadCreate(&ThreadConfig, true, &Worker->Thread);
     if (QUIC_FAILED(Status)) {
         QuicTraceEvent(
             WorkerErrorStatus,
@@ -752,7 +752,7 @@ int ff_callback(void *Context)
     if (!QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
         ff_stop_run();
     }
-    CxPlatWorkerReadEvents(0, ThreadID);
+    //CxPlatWorkerReadEvents(0, ThreadID);
 
     return 0;
 }

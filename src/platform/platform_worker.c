@@ -147,7 +147,7 @@ CxPlatWorkersInit(
         ThreadConfig.IdealProcessor = (uint16_t)i;
         ThreadConfig.Context = &CxPlatWorkers[i];
         if (QUIC_FAILED(
-            CxPlatFfThreadCreate(&ThreadConfig, &CxPlatWorkers[i].Thread, 0))) {
+            CxPlatFfThreadCreate(&ThreadConfig, 0, &CxPlatWorkers[i].Thread))) {
             CxPlatWorkers[i].Running = FALSE;
             goto Error;
         }
@@ -303,6 +303,7 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
 
     Worker->ThreadId = CxPlatCurThreadID();
 
+    // TODO(arun): wait for DPDK to initialize
     ff_run(ff_platform_worker_callback, Worker);
 
 //    uint32_t NoWorkCount = 0;

@@ -302,8 +302,11 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         Worker);
 
     Worker->ThreadId = CxPlatCurThreadID();
-
-    // TODO(arun): wait for DPDK to initialize
+    pthread_mutex_lock(&mtx);
+    while(!dpdk_initialized) {
+        pthread_cond_wait(&cond, &mtx);
+    }
+    pthread_mutex_unlock(&mtx);
     ff_run(ff_platform_worker_callback, Worker);
 
 //    uint32_t NoWorkCount = 0;

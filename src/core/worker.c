@@ -770,17 +770,17 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         Worker);
 
     //assert(ff_init(g_FstackArgs.argc, g_FstackArgs.argv) == 0);
-    if (ff_init_dpdk() != 0) {
-        QuicTraceEvent(
-            WorkerErrorStatus,
-            "[wrkr][%p] ERROR, %u, %s.",
-            Worker,
-            0,
-            "ff_init_dpdk");
-        CXPLAT_THREAD_RETURN(QUIC_STATUS_INTERNAL_ERROR);
-    }
+    //if (ff_init_dpdk() != 0) {
+    //    QuicTraceEvent(
+    //        WorkerErrorStatus,
+    //        "[wrkr][%p] ERROR, %u, %s.",
+    //        Worker,
+    //        0,
+    //        "ff_init_dpdk");
+    //    CXPLAT_THREAD_RETURN(QUIC_STATUS_INTERNAL_ERROR);
+    //}
     //ff_run(ff_callback, Context, true);
-    ff_run(ff_callback, Context);
+    ff_run(ff_callback, Context, 6);
     //uint64_t TimeNow = CxPlatTimeUs64();
     //while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
     //    BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);

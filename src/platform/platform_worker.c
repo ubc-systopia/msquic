@@ -79,6 +79,8 @@ uint32_t CxPlatWorkerCount;
 CXPLAT_WORKER* CxPlatWorkers;
 CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context);
 
+int ff_platform_worker_callback(void *Context);
+
 void
 CxPlatWorkerWake(
     _In_ CXPLAT_WORKER* Worker
@@ -104,6 +106,14 @@ CxPlatWorkerRegisterDataPath(
     CXPLAT_FRE_ASSERTMSG(Worker->DatapathEC == NULL, "Only one datapath allowed!");
     Worker->DatapathEC = Context;
     CxPlatEventSet(Worker->WakeEvent);
+}
+
+void synchronizeDpdkInitialization() {
+    if (ff_init_dpdk() != 0) {
+        QuicTraceLogError(
+            PlatformWorkerThreadStart,
+            "[ lib] DPDK initialization failed");
+    }
 }
 
 #pragma warning(push)
@@ -136,6 +146,7 @@ CxPlatWorkersInit(
         CxPlatWorkerThread,
         NULL
     };
+    (void) ThreadConfig;
 
     CxPlatZeroMemory(CxPlatWorkers, WorkersSize);
     for (uint32_t i = 0; i < CxPlatWorkerCount; ++i) {
@@ -146,32 +157,34 @@ CxPlatWorkersInit(
         CxPlatEventInitialize(&CxPlatWorkers[i].WakeEvent, FALSE, FALSE);
         ThreadConfig.IdealProcessor = (uint16_t)i;
         ThreadConfig.Context = &CxPlatWorkers[i];
-        if (QUIC_FAILED(
-            CxPlatFfThreadCreate(&ThreadConfig, 0, &CxPlatWorkers[i].Thread))) {
-            CxPlatWorkers[i].Running = FALSE;
-            goto Error;
-        }
+        synchronizeDpdkInitialization();
+        ff_run(ff_platform_worker_callback, &CxPlatWorkers[i], 5);
+        //if (QUIC_FAILED(
+        //    CxPlatFfThreadCreate(&ThreadConfig, 0, &CxPlatWorkers[i].Thread))) {
+        //    CxPlatWorkers[i].Running = FALSE;
+        //    goto Error;
+        //}
     }
 
     return TRUE;
 
-Error:
-
-    for (uint32_t i = 0; i < CxPlatWorkerCount && CxPlatWorkers[i].Running; ++i) {
-        CxPlatWorkers[i].Running = FALSE;
-        CxPlatEventSet(CxPlatWorkers[i].WakeEvent);
-        CxPlatFfThreadWait(&CxPlatWorkers[i].Thread);
-        CxPlatThreadDelete(&CxPlatWorkers[i].Thread);
-#ifdef QUIC_USE_EXECUTION_CONTEXTS
-        CxPlatLockUninitialize(&CxPlatWorkers[i].ECLock);
-#endif // QUIC_USE_EXECUTION_CONTEXTS
-        CxPlatEventUninitialize(CxPlatWorkers[i].WakeEvent);
-    }
-
-    CXPLAT_FREE(CxPlatWorkers, QUIC_POOL_PLATFORM_WORKER);
-    CxPlatWorkers = NULL;
-
-    return FALSE;
+//Error:
+//
+//    for (uint32_t i = 0; i < CxPlatWorkerCount && CxPlatWorkers[i].Running; ++i) {
+//        CxPlatWorkers[i].Running = FALSE;
+//        CxPlatEventSet(CxPlatWorkers[i].WakeEvent);
+//        CxPlatFfThreadWait(&CxPlatWorkers[i].Thread);
+//        CxPlatThreadDelete(&CxPlatWorkers[i].Thread);
+//#ifdef QUIC_USE_EXECUTION_CONTEXTS
+//        CxPlatLockUninitialize(&CxPlatWorkers[i].ECLock);
+//#endif // QUIC_USE_EXECUTION_CONTEXTS
+//        CxPlatEventUninitialize(CxPlatWorkers[i].WakeEvent);
+//    }
+//
+//    CXPLAT_FREE(CxPlatWorkers, QUIC_POOL_PLATFORM_WORKER);
+//    CxPlatWorkers = NULL;
+//
+//    return FALSE;
 }
 #pragma warning(pop)
 
@@ -281,6 +294,10 @@ int ff_platform_worker_callback(void *Context)
 {
     CXPLAT_WORKER* Worker = (CXPLAT_WORKER*)Context;
 
+    if (Worker->ThreadId == 0) {
+        Worker->ThreadId = CxPlatCurThreadID();
+    }
+
     uint32_t WaitTime = UINT32_MAX;
 
     if (Worker->DatapathEC) {
@@ -307,7 +324,7 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         pthread_cond_wait(&cond, &mtx);
     }
     pthread_mutex_unlock(&mtx);
-    ff_run(ff_platform_worker_callback, Worker);
+    ff_run(ff_platform_worker_callback, Worker, 5);
 
 //    uint32_t NoWorkCount = 0;
 //    while (Worker->Running) {

@@ -4063,14 +4063,14 @@ QuicConnRecvDecryptAndAuthenticate(
             PacketDecrypt,
             "[pack][%llu] Decrypting",
             Packet->PacketId);
-        if (QUIC_FAILED(
-            CxPlatDecrypt(
-                Connection->Crypto.TlsState.ReadKeys[Packet->KeyType]->PacketKey,
-                Iv,
-                Packet->HeaderLength,   // HeaderLength
-                Packet->Buffer,         // Header
-                Packet->PayloadLength,  // BufferLength
-                (uint8_t*)Payload))) {  // Buffer
+        //if (QUIC_FAILED(
+        //    CxPlatDecrypt(
+        //        Connection->Crypto.TlsState.ReadKeys[Packet->KeyType]->PacketKey,
+        //        Iv,
+        //        Packet->HeaderLength,   // HeaderLength
+        //        Packet->Buffer,         // Header
+        //        Packet->PayloadLength,  // BufferLength
+        //        (uint8_t*)Payload))) {  // Buffer
 
             //
             // Check for a stateless reset packet.
@@ -4130,7 +4130,7 @@ QuicConnRecvDecryptAndAuthenticate(
             }
 
             return FALSE;
-        }
+        //}
     }
 
     Connection->Stats.Recv.ValidPackets++;

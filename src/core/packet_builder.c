@@ -796,18 +796,18 @@ QuicPacketBuilderFinalize(
         QuicCryptoCombineIvAndPacketNumber(Builder->Key->Iv, (uint8_t*) &Builder->Metadata->PacketNumber, Iv);
 
         QUIC_STATUS Status;
-        if (QUIC_FAILED(
-            Status =
-            CxPlatEncrypt(
-                Builder->Key->PacketKey,
-                Iv,
-                Builder->HeaderLength,
-                Header,
-                PayloadLength,
-                Payload))) {
-            QuicConnFatalError(Connection, Status, "Encryption failure");
-            goto Exit;
-        }
+        //if (QUIC_FAILED(
+        //    Status =
+        //    CxPlatEncrypt(
+        //        Builder->Key->PacketKey,
+        //        Iv,
+        //        Builder->HeaderLength,
+        //        Header,
+        //        PayloadLength,
+        //        Payload))) {
+        //    QuicConnFatalError(Connection, Status, "Encryption failure");
+        //    goto Exit;
+        //}
 
         QuicTraceEvent(
             PacketFinalize,

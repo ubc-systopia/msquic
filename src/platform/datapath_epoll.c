@@ -15,14 +15,24 @@ Environment:
 
 #include "platform_internal.h"
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <inttypes.h>
+#include <linux/errqueue.h>
 #include <linux/filter.h>
 #include <linux/in6.h>
+#include <linux/net_tstamp.h>
+#include <linux/sockios.h>
+#include <net/if.h>
 #include <netinet/udp.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include <sys/ioctl.h>
 #ifdef QUIC_CLOG
 #include "datapath_epoll.c.clog.h"
+#endif
+
+#ifdef PROFILE
+struct MsQuicTxProfile g_MsQuicTxProfile = {};
 #endif
 
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
@@ -184,6 +194,7 @@ typedef struct CXPLAT_SEND_DATA {
 typedef struct CXPLAT_RECV_MSG_CONTROL_BUFFER {
     char Data[CMSG_SPACE(sizeof(struct in6_pktinfo)) +
               CMSG_SPACE(sizeof(struct in_pktinfo)) +
+              CMSG_SPACE(sizeof(struct scm_timestamping)) +
               2 * CMSG_SPACE(sizeof(int))];
 } CXPLAT_RECV_MSG_CONTROL_BUFFER;
 
@@ -424,6 +435,26 @@ typedef struct CXPLAT_DATAPATH {
     CXPLAT_DATAPATH_PROC_CONTEXT ProcContexts[];
 
 } CXPLAT_DATAPATH;
+
+#ifdef PROFILE
+/**
+ * @brief Tracks hardware timestamps of outbound packets.
+ *
+ * @param ts The timestamping structure containing the timestamps.
+ */
+void trackTxTimestamps(
+        _In_ struct scm_timestamping *ts);
+
+/**
+ * @brief Gets the local interface name from the local address.
+ *
+ * @param localAddress The local address to get the interface name from.
+ * @param ifName The buffer to store the interface name.
+ */
+BOOLEAN getLocalIfName(
+        _In_ const QUIC_ADDR *localAddress,
+        _Out_ char *ifName);
+#endif
 
 QUIC_STATUS
 CxPlatSocketSendInternal(
@@ -1013,7 +1044,11 @@ CxPlatSocketContextInitialize(
     SocketContext->SocketFd =
         socket(
             AF_INET6,
+#ifdef PROFILE
+            SOCK_DGRAM | /* SOCK_NONBLOCK | */ SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
+#else
             SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
+#endif
             IPPROTO_UDP);
     if (SocketContext->SocketFd == INVALID_SOCKET) {
         Status = errno;
@@ -1025,6 +1060,58 @@ CxPlatSocketContextInitialize(
             "socket failed");
         goto Exit;
     }
+
+#ifdef PROFILE
+    struct ifreq ifr;
+    struct hwtstamp_config cfg;
+    memset(&ifr, 0, sizeof(ifr));
+    memset(&cfg, 0, sizeof(cfg));
+    if (!getLocalIfName(LocalAddress, ifr.ifr_name)) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "getLocalIfName failed");
+        goto Exit;
+    }
+
+    cfg.tx_type = HWTSTAMP_TX_ON;
+    cfg.rx_filter = HWTSTAMP_FILTER_NONE;
+
+    ifr.ifr_data = (char *)&cfg;
+
+    if (ioctl(SocketContext->SocketFd, SIOCSHWTSTAMP, &ifr) < 0) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "ioctl(SIOCSHWTSTAMP) failed");
+        goto Exit;
+    }
+
+    uint32_t timestamp_flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
+    Result =
+        setsockopt(
+            SocketContext->SocketFd,
+            SOL_SOCKET,
+            SO_TIMESTAMPING,
+            &timestamp_flags,
+            sizeof(timestamp_flags));
+    if (Result == SOCKET_ERROR) {
+        Status = errno;
+        QuicTraceEvent(
+            DatapathErrorStatus,
+            "[data][%p] ERROR, %u, %s.",
+            Binding,
+            Status,
+            "setsockopt(SO_TIMESTAMPING) failed");
+        goto Exit;
+    }
+#endif
 
     //
     // Set dual (IPv4 & IPv6) socket mode.
@@ -2617,6 +2704,44 @@ CxPlatSocketSendInternal(
                 (unsigned int)(TotalMessagesCount - SendData->SentMessagesCount),
                 0);
 
+#ifdef PROFILE
+        char packet_buffer[4096];
+        char ctrl[2048];
+        struct iovec iov = (struct iovec) {.iov_base = packet_buffer, .iov_len = sizeof(packet_buffer)};
+        struct msghdr msg = (struct msghdr) {.msg_control = ctrl,
+            .msg_controllen = sizeof(ctrl),
+            .msg_name = &MappedRemoteAddress,
+            .msg_namelen = sizeof(MappedRemoteAddress),
+            .msg_iov = &iov,
+            .msg_iovlen = 1};
+
+        while (recvmsg(SocketContext->SocketFd, &msg, MSG_ERRQUEUE) > 0) {
+            for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVERR) {
+                    continue;
+                }
+
+                if (cmsg->cmsg_level != SOL_SOCKET) {
+                    continue;
+                }
+
+                struct scm_timestamping* ts;
+                switch (cmsg->cmsg_type) {
+                    case SO_TIMESTAMPNS:
+                        ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
+                        trackTxTimestamps(ts);
+                        break;
+                    case SO_TIMESTAMPING:
+                        ts = (struct scm_timestamping *)CMSG_DATA(cmsg);
+                        trackTxTimestamps(ts);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+#endif
+
         CXPLAT_FRE_ASSERT(SuccessfullySentMessages != 0);
 
         if (SuccessfullySentMessages < 0) {
@@ -2795,3 +2920,43 @@ CxPlatDataPathRunEC(
 
     return TRUE;
 }
+
+#ifdef PROFILE
+void trackTxTimestamps(
+        _In_ struct scm_timestamping *ts) {
+    if (g_MsQuicTxProfile.numTimestamps < MAX_TIMESTAMPS) {
+        g_MsQuicTxProfile.timestamps[g_MsQuicTxProfile.numTimestamps] = ts->ts[2];
+        ++g_MsQuicTxProfile.numTimestamps;
+    }
+}
+
+BOOLEAN getLocalIfName(
+        _In_ const QUIC_ADDR* localAddress,
+        _Out_ char* ifName) {
+    struct ifaddrs *ifaddr;
+
+    getifaddrs(&ifaddr);
+
+    for (; ifaddr != NULL; ifaddr = ifaddr->ifa_next) {
+        if (ifaddr->ifa_addr == NULL) {
+            continue;
+        }
+
+        if (QuicAddrGetFamily(localAddress) == QUIC_ADDRESS_FAMILY_INET && ifaddr->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *ipv4 = (struct sockaddr_in *)ifaddr->ifa_addr;
+            if (ipv4->sin_addr.s_addr == localAddress->Ipv4.sin_addr.s_addr) {
+                strcpy(ifName, ifaddr->ifa_name);
+                return true;
+            }
+        } else if (QuicAddrGetFamily(localAddress) == QUIC_ADDRESS_FAMILY_INET6
+                && ifaddr->ifa_addr->sa_family == AF_INET6) {
+            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)ifaddr->ifa_addr;
+            if (ipv6->sin6_addr.s6_addr == localAddress->Ipv6.sin6_addr.s6_addr) {
+                strcpy(ifName, ifaddr->ifa_name);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+#endif

@@ -771,7 +771,7 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
 #if IMPLEMENTATION == 1
     assert(ff_init_dpdk() == 0);
     ff_run(QuicProcessingLoop, Context, DPDK_CORE);
-#elif IMPELMENTATION == 2
+#elif IMPLEMENTATION == 2
     ff_run(QuicProcessingLoop, Context, TX_CORE);
 #endif
 

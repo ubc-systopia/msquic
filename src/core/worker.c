@@ -23,6 +23,8 @@ Abstract:
 #ifdef QUIC_CLOG
 #include "worker.c.clog.h"
 #endif
+#include "../platform/platform_internal.h"
+#include "ff_api.h"
 
 BOOLEAN
 QuicWorkerLoop(
@@ -36,6 +38,18 @@ QuicWorkerLoop(
 // Thread callback for processing the work queued for the worker.
 //
 CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context);
+
+#if IMPLEMENTATION == 1
+/**
+ * @brief Callback for F-Stack to process TX and RX packets.
+ *
+ * @param Context The context passed to the thread.
+ *
+ * @return The status of the thread.
+ */
+int QuicProcessingLoop(void *Context);
+#endif
+
 #endif
 
 void
@@ -106,6 +120,9 @@ QuicWorkerInitialize(
     UNREFERENCED_PARAMETER(ThreadFlags);
     CxPlatAddExecutionContext(&Worker->ExecutionContext, IdealProcessor);
 #else
+#if IMPLEMENTATION == 1
+    (void)ThreadFlags;
+#endif
     CXPLAT_THREAD_CONFIG ThreadConfig = {
         ThreadFlags,
         IdealProcessor,
@@ -114,7 +131,11 @@ QuicWorkerInitialize(
         Worker
     };
 
+#if IMPLEMENTATION == 1
+    Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
+#else
     Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
+#endif
     if (QUIC_FAILED(Status)) {
         QuicTraceEvent(
             WorkerErrorStatus,
@@ -717,36 +738,34 @@ QuicWorkerLoop(
     return TRUE;
 }
 
-#ifndef QUIC_USE_EXECUTION_CONTEXTS
-CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
+int QuicProcessingLoop(void *Context)
 {
     QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
     CXPLAT_EXECUTION_CONTEXT* EC = &Worker->ExecutionContext;
     const CXPLAT_THREAD_ID ThreadID = CxPlatCurThreadID();
+
+    uint64_t TimeNow = CxPlatTimeUs64();
+
+    if (!QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
+        ff_stop_run();
+    }
+    CxPlatWorkerReadEvents(0, ThreadID);
+
+    return 0;
+}
+
+#ifndef QUIC_USE_EXECUTION_CONTEXTS
+CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
+{
+    QUIC_WORKER* Worker = (QUIC_WORKER*)Context;
 
     QuicTraceEvent(
         WorkerStart,
         "[wrkr][%p] Start",
         Worker);
 
-    uint64_t TimeNow = CxPlatTimeUs64();
-    while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
-        BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);
-        if (!Ready) {
-            if (EC->NextTimeUs == UINT64_MAX) {
-                CxPlatEventWaitForever(Worker->Ready);
-                TimeNow = CxPlatTimeUs64();
-
-            } else if (EC->NextTimeUs > TimeNow) {
-                uint64_t Delay = US_TO_MS(EC->NextTimeUs - TimeNow) + 1;
-                if (Delay >= (uint64_t)UINT32_MAX) {
-                    Delay = UINT32_MAX - 1; // Max has special meaning for most platforms.
-                }
-                CxPlatEventWaitWithTimeout(Worker->Ready, (uint32_t)Delay);
-                TimeNow = CxPlatTimeUs64();
-            }
-        }
-    }
+    assert(ff_init_dpdk() == 0);
+    ff_run(QuicProcessingLoop, Context);
 
     QuicTraceEvent(
         WorkerStop,

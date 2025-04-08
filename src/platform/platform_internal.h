@@ -239,3 +239,14 @@ CxPlatWorkerRegisterDataPath(
     _In_ uint16_t IdealProcessor,
     _In_ void* Context
     );
+
+/**
+ * @brief Reads events from the worker thread.
+ *
+ * @param IdealProcessor The ideal processor for the worker thread.
+ * @param ThreadId The thread ID of the worker thread.
+ */
+void CxPlatWorkerReadEvents(
+    _In_ uint16_t IdealProcessor,
+    const _In_ CXPLAT_THREAD_ID ThreadId
+);

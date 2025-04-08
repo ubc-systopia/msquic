@@ -938,6 +938,22 @@ CxPlatThreadCreate(
     _Out_ CXPLAT_THREAD* Thread
     );
 
+/**
+ * @brief Creates a new F-Stack thread.
+ *
+ * @param Config Thread configuration.
+ * @param Thread Pointer to the thread object.
+ *
+ * @return QUIC_STATUS
+ */
+QUIC_STATUS
+CxPlatFfThreadCreate(
+    _In_ CXPLAT_THREAD_CONFIG* Config,
+    _Out_ CXPLAT_THREAD* Thread
+    );
+
+
+
 void
 CxPlatThreadDelete(
     _Inout_ CXPLAT_THREAD* Thread
@@ -947,6 +963,17 @@ void
 CxPlatThreadWait(
     _Inout_ CXPLAT_THREAD* Thread
     );
+
+/**
+ * @brief Waits for a F-Stack thread to finish.
+ *
+ * @param Thread Pointer to the thread object.
+ */
+void
+CxPlatFfThreadWait(
+    _Inout_ CXPLAT_THREAD* Thread
+    );
+
 
 typedef uint32_t CXPLAT_THREAD_ID;
 

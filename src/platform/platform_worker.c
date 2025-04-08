@@ -127,6 +127,7 @@ CxPlatWorkersInit(
         return FALSE;
     }
 
+#if IMPLEMENTATION == 0
     CXPLAT_THREAD_CONFIG ThreadConfig = {
         CXPLAT_THREAD_FLAG_SET_AFFINITIZE,
         0,
@@ -134,6 +135,7 @@ CxPlatWorkersInit(
         CxPlatWorkerThread,
         NULL
     };
+#endif
 
     CxPlatZeroMemory(CxPlatWorkers, WorkersSize);
     for (uint32_t i = 0; i < CxPlatWorkerCount; ++i) {
@@ -142,6 +144,7 @@ CxPlatWorkersInit(
         CxPlatLockInitialize(&CxPlatWorkers[i].ECLock);
 #endif // QUIC_USE_EXECUTION_CONTEXTS
         CxPlatEventInitialize(&CxPlatWorkers[i].WakeEvent, FALSE, FALSE);
+#if IMPLEMENTATION == 0
         ThreadConfig.IdealProcessor = (uint16_t)i;
         ThreadConfig.Context = &CxPlatWorkers[i];
         if (QUIC_FAILED(
@@ -149,10 +152,12 @@ CxPlatWorkersInit(
             CxPlatWorkers[i].Running = FALSE;
             goto Error;
         }
+#endif
     }
 
     return TRUE;
 
+#if IMPLEMENTATION == 0
 Error:
 
     for (uint32_t i = 0; i < CxPlatWorkerCount && CxPlatWorkers[i].Running; ++i) {
@@ -170,6 +175,7 @@ Error:
     CxPlatWorkers = NULL;
 
     return FALSE;
+#endif
 }
 #pragma warning(pop)
 
@@ -334,4 +340,14 @@ CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
         Worker);
 
     CXPLAT_THREAD_RETURN(0);
+}
+
+void CxPlatWorkerReadEvents(
+    _In_ uint16_t IdealProcessor,
+    const _In_ CXPLAT_THREAD_ID ThreadId
+) {
+    CXPLAT_WORKER* Worker = &CxPlatWorkers[IdealProcessor % CxPlatWorkerCount];
+    if (Worker->DatapathEC) {
+        CxPlatDataPathRunEC(&Worker->DatapathEC, ThreadId, UINT32_MAX);
+    }
 }

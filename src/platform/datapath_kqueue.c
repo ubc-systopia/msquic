@@ -34,7 +34,7 @@ Environment:
 struct MsQuicTxProfile g_MsQuicTxProfile = {};
 #endif
 
-#if IMPLEMENTATION == 1
+#if IMPLEMENTATION != 0
 static pthread_mutex_t initialization_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t initialization_cv = PTHREAD_COND_INITIALIZER;
 
@@ -1168,7 +1168,7 @@ CxPlatSocketContextStartReceive(
         goto Error;
     }
 
-#if IMPLEMENTATION == 1
+#if IMPLEMENTATION != 0
     pthread_mutex_lock(&initialization_mutex);
     initialized = true;
     pthread_mutex_unlock(&initialization_mutex);
@@ -2328,7 +2328,7 @@ CxPlatDataPathRunEC(
         Timeout.tv_nsec += ((WaitTime % CXPLAT_MS_PER_SECOND) * CXPLAT_NANOSEC_PER_MS);
     }
 
-#if IMPLEMENTATION == 1
+#if IMPLEMENTATION != 0
     pthread_mutex_lock(&initialization_mutex);
     while (!initialized) {
         pthread_cond_wait(&initialization_cv, &initialization_mutex);

@@ -82,6 +82,13 @@ struct MsQuicTxProfile {
 extern struct MsQuicTxProfile g_MsQuicTxProfile;
 #endif
 
+#if IMPLEMENTATION == 2
+static const int RX_CORE = 5;
+static const int TX_CORE = 6;
+#else
+static const int DPDK_CORE = 5;
+#endif
+
 typedef enum QUIC_TLS_PROVIDER {
     QUIC_TLS_PROVIDER_SCHANNEL                  = 0x0000,
     QUIC_TLS_PROVIDER_OPENSSL                   = 0x0001,

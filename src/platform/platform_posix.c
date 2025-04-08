@@ -84,7 +84,7 @@ CxPlatSystemLoad(
     void
     )
 {
-    #if defined(CX_PLATFORM_DARWIN) || IMPLEMENTATION == 1
+    #if defined(CX_PLATFORM_DARWIN) || IMPLEMENTATION != 0
     //
     // arm64 macOS has no way to get the current proc, so treat as single core.
     // Intel macOS can return incorrect values for CPUID, so treat as single core.
@@ -586,6 +586,9 @@ CxPlatGetAllocFailDenominator(
 QUIC_STATUS
 CxPlatFfThreadCreate(
     _In_ CXPLAT_THREAD_CONFIG* Config,
+#if IMPLEMENTATION == 2
+    _In_ bool MainThread,
+#endif
     _Out_ CXPLAT_THREAD* Thread
     )
 {
@@ -645,7 +648,11 @@ CxPlatFfThreadCreate(
     CustomContext->Callback = Config->Callback;
     CustomContext->Context = Config->Context;
 
-    if (ff_pthread_create(Thread, &Attr, CxPlatThreadCustomStart, CustomContext)) {
+#if IMPLEMENTATION == 2
+    if (ff_pthread_create(Thread, &Attr, CxPlatThreadCustomStart, CustomContext, MainThread)) {
+#else
+    if (ff_pthread_create(Thread, &Attr, CxPlatThreadCustomStart, CustomContext, true)) {
+#endif
         Status = errno;
         QuicTraceEvent(
             LibraryErrorStatus,
@@ -661,11 +668,19 @@ CxPlatFfThreadCreate(
     // If pthread_create fails with an error code, then try again without the attribute
     // because the CPU might be offline.
     //
-    if (ff_pthread_create(Thread, &Attr, Config->Callback, Config->Context)) {
+#if IMPLEMENTATION == 2
+    if (ff_pthread_create(Thread, &Attr, Config->Callback, Config->Context, MainThread)) {
+#else
+    if (ff_pthread_create(Thread, &Attr, Config->Callback, Config->Context, true)) {
+#endif
         QuicTraceLogWarning(
             PlatformThreadCreateFailed,
             "[ lib] pthread_create failed, retrying without affinitization");
-        if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context)) {
+#if IMPLEMENTATION == 2
+        if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context, MainThread)) {
+#else
+        if (ff_pthread_create(Thread, NULL, Config->Callback, Config->Context, true)) {
+#endif
             Status = errno;
             QuicTraceEvent(
                 LibraryErrorStatus,

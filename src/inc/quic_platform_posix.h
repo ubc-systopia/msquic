@@ -942,6 +942,7 @@ CxPlatThreadCreate(
  * @brief Creates a new F-Stack thread.
  *
  * @param Config Thread configuration.
+ * @param MainThread True if this is the main thread, False otherwise
  * @param Thread Pointer to the thread object.
  *
  * @return QUIC_STATUS
@@ -949,6 +950,9 @@ CxPlatThreadCreate(
 QUIC_STATUS
 CxPlatFfThreadCreate(
     _In_ CXPLAT_THREAD_CONFIG* Config,
+#if IMPLEMENTATION == 2
+    _In_ bool MainThread,
+#endif
     _Out_ CXPLAT_THREAD* Thread
     );
 

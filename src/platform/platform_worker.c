@@ -15,6 +15,8 @@ Abstract:
 #include "platform_worker.c.clog.h"
 #endif
 
+#include <ff_api.h>
+
 typedef struct QUIC_CACHEALIGN CXPLAT_WORKER {
 
     //
@@ -77,6 +79,15 @@ uint32_t CxPlatWorkerCount;
 CXPLAT_WORKER* CxPlatWorkers;
 CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context);
 
+/**
+ * @brief Processes RX events for the worker thread.
+ *
+ * @param Context The worker thread context.
+ *
+ * @return 0 on success
+ */
+int QuicPlatformWorkerLoop(void *Context);
+
 void
 CxPlatWorkerWake(
     _In_ CXPLAT_WORKER* Worker
@@ -102,6 +113,17 @@ CxPlatWorkerRegisterDataPath(
     CXPLAT_FRE_ASSERTMSG(Worker->DatapathEC == NULL, "Only one datapath allowed!");
     Worker->DatapathEC = Context;
     CxPlatEventSet(Worker->WakeEvent);
+}
+
+/**
+ * @brief Starts the DPDK thread.
+ */
+void StartDpdkThread() {
+    if (ff_init_dpdk() != 0) {
+        QuicTraceLogError(
+            PlatformWorkerThreadStart,
+            "[ lib] DPDK initialization failed");
+    }
 }
 
 #pragma warning(push)
@@ -152,6 +174,9 @@ CxPlatWorkersInit(
             CxPlatWorkers[i].Running = FALSE;
             goto Error;
         }
+#elif IMPLEMENTATION == 2
+        StartDpdkThread();
+        ff_run(QuicPlatformWorkerLoop, &CxPlatWorkers[i].Thread, RX_CORE);
 #endif
     }
 
@@ -280,6 +305,22 @@ CxPlatRunExecutionContexts(
 // The number of iterations to run before yielding our thread to the scheduler.
 //
 #define CXPLAT_WORKER_IDLE_WORK_THRESHOLD_COUNT 10
+
+int QuicPlatformWorkerLoop(void *Context) {
+    CXPLAT_WORKER* Worker = (CXPLAT_WORKER*)Context;
+
+    if (Worker->ThreadId == 0) {
+        Worker->ThreadId = CxPlatCurThreadID();
+    }
+
+    uint32_t WaitTime = UINT32_MAX;
+
+    if (Worker->DatapathEC) {
+        CxPlatDataPathRunEC(&Worker->DatapathEC, Worker->ThreadId, WaitTime);
+    }
+
+    return 0;
+}
 
 CXPLAT_THREAD_CALLBACK(CxPlatWorkerThread, Context)
 {

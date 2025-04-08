@@ -131,10 +131,12 @@ QuicWorkerInitialize(
         Worker
     };
 
-#if IMPLEMENTATION == 1
+#if IMPELMENTATION == 0
+    Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
+#elif IMPLEMENTATION == 1
     Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);
 #else
-    Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
+    Status = CxPlatFfThreadCreate(&ThreadConfig, true, &Worker->Thread);
 #endif
     if (QUIC_FAILED(Status)) {
         QuicTraceEvent(
@@ -749,7 +751,9 @@ int QuicProcessingLoop(void *Context)
     if (!QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
         ff_stop_run();
     }
+#if IMPLEMENTATION == 1
     CxPlatWorkerReadEvents(0, ThreadID);
+#endif
 
     return 0;
 }
@@ -764,8 +768,12 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         "[wrkr][%p] Start",
         Worker);
 
+#if IMPLEMENTATION == 1
     assert(ff_init_dpdk() == 0);
-    ff_run(QuicProcessingLoop, Context);
+    ff_run(QuicProcessingLoop, Context, DPDK_CORE);
+#elseif IMPELMENTATION == 2
+    ff_run(QuicProcessingLoop, Context, TX_CORE);
+#endif
 
     QuicTraceEvent(
         WorkerStop,

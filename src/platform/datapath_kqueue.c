@@ -2312,6 +2312,14 @@ CxPlatDataPathRunEC(
     _In_ uint32_t WaitTime
     )
 {
+#if IMPLEMENTATION != 0
+    pthread_mutex_lock(&initialization_mutex);
+    while (!initialized) {
+        pthread_cond_wait(&initialization_cv, &initialization_mutex);
+    }
+    pthread_mutex_unlock(&initialization_mutex);
+#endif
+
     CXPLAT_DATAPATH_PROC_CONTEXT** EcProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT**)Context;
     CXPLAT_DATAPATH_PROC_CONTEXT* ProcContext = *EcProcContext;
     CXPLAT_DBG_ASSERT(ProcContext->Datapath != NULL);
@@ -2327,14 +2335,6 @@ CxPlatDataPathRunEC(
         Timeout.tv_sec += (WaitTime / CXPLAT_MS_PER_SECOND);
         Timeout.tv_nsec += ((WaitTime % CXPLAT_MS_PER_SECOND) * CXPLAT_NANOSEC_PER_MS);
     }
-
-#if IMPLEMENTATION != 0
-    pthread_mutex_lock(&initialization_mutex);
-    while (!initialized) {
-        pthread_cond_wait(&initialization_cv, &initialization_mutex);
-    }
-    pthread_mutex_unlock(&initialization_mutex);
-#endif
 
     int ReadyEventCount =
         TEMP_FAILURE_RETRY(

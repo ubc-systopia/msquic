@@ -131,7 +131,7 @@ QuicWorkerInitialize(
         Worker
     };
 
-#if IMPELMENTATION == 0
+#if IMPLEMENTATION == 0
     Status = CxPlatThreadCreate(&ThreadConfig, &Worker->Thread);
 #elif IMPLEMENTATION == 1
     Status = CxPlatFfThreadCreate(&ThreadConfig, &Worker->Thread);

@@ -84,7 +84,7 @@ CxPlatSystemLoad(
     void
     )
 {
-    #if defined(CX_PLATFORM_DARWIN) || IMPLEMENTATION != 0
+    #if defined(CX_PLATFORM_DARWIN) || defined(IMPLEMENTATION)
     //
     // arm64 macOS has no way to get the current proc, so treat as single core.
     // Intel macOS can return incorrect values for CPUID, so treat as single core.

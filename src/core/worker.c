@@ -748,9 +748,29 @@ int QuicProcessingLoop(void *Context)
 
     uint64_t TimeNow = CxPlatTimeUs64();
 
+#if IMPLEMENTATION == 0
+    while (QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
+        BOOLEAN Ready = InterlockedFetchAndClearBoolean(&EC->Ready);
+        if (!Ready) {
+            if (EC->NextTimeUs == UINT64_MAX) {
+                CxPlatEventWaitForever(Worker->Ready);
+                TimeNow = CxPlatTimeUs64();
+
+            } else if (EC->NextTimeUs > TimeNow) {
+                uint64_t Delay = US_TO_MS(EC->NextTimeUs - TimeNow) + 1;
+                if (Delay >= (uint64_t)UINT32_MAX) {
+                    Delay = UINT32_MAX - 1; // Max has special meaning for most platforms.
+                }
+                CxPlatEventWaitWithTimeout(Worker->Ready, (uint32_t)Delay);
+                TimeNow = CxPlatTimeUs64();
+            }
+        }
+    }
+#else
     if (!QuicWorkerLoop(EC, &TimeNow, ThreadID)) {
         ff_stop_run();
     }
+#endif
 #if IMPLEMENTATION == 1
     CxPlatWorkerReadEvents(0, ThreadID);
 #endif
@@ -768,7 +788,9 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         "[wrkr][%p] Start",
         Worker);
 
-#if IMPLEMENTATION == 1
+#if IMPLEMENTATION == 0
+    QuicProcessingLoop(Context);
+#elif IMPLEMENTATION == 1
     assert(ff_init_dpdk() == 0);
     ff_run(QuicProcessingLoop, Context, DPDK_CORE);
 #elif IMPLEMENTATION == 2

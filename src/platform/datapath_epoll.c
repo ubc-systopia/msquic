@@ -38,6 +38,8 @@ struct MsQuicTxProfile g_MsQuicTxProfile = {};
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Length) <= sizeof(size_t)), "(sizeof(QUIC_BUFFER.Length) == sizeof(size_t) must be TRUE.");
 CXPLAT_STATIC_ASSERT((SIZEOF_STRUCT_MEMBER(QUIC_BUFFER, Buffer) == sizeof(void*)), "(sizeof(QUIC_BUFFER.Buffer) == sizeof(void*) must be TRUE.");
 
+char* g_tx_interface = NULL;
+
 #ifdef HAS_SENDMMSG
 #define CXPLAT_SENDMMSG sendmmsg
 #else
@@ -444,16 +446,6 @@ typedef struct CXPLAT_DATAPATH {
  */
 void trackTxTimestamps(
         _In_ struct scm_timestamping *ts);
-
-/**
- * @brief Gets the local interface name from the local address.
- *
- * @param localAddress The local address to get the interface name from.
- * @param ifName The buffer to store the interface name.
- */
-BOOLEAN getLocalIfName(
-        _In_ const QUIC_ADDR *localAddress,
-        _Out_ char *ifName);
 #endif
 
 QUIC_STATUS
@@ -1066,16 +1058,7 @@ CxPlatSocketContextInitialize(
     struct hwtstamp_config cfg;
     memset(&ifr, 0, sizeof(ifr));
     memset(&cfg, 0, sizeof(cfg));
-    if (!getLocalIfName(LocalAddress, ifr.ifr_name)) {
-        Status = errno;
-        QuicTraceEvent(
-            DatapathErrorStatus,
-            "[data][%p] ERROR, %u, %s.",
-            Binding,
-            Status,
-            "getLocalIfName failed");
-        goto Exit;
-    }
+    strcpy(ifr.ifr_name, g_tx_interface);
 
     cfg.tx_type = HWTSTAMP_TX_ON;
     cfg.rx_filter = HWTSTAMP_FILTER_NONE;
@@ -2928,35 +2911,5 @@ void trackTxTimestamps(
         g_MsQuicTxProfile.timestamps[g_MsQuicTxProfile.numTimestamps] = ts->ts[2];
         ++g_MsQuicTxProfile.numTimestamps;
     }
-}
-
-BOOLEAN getLocalIfName(
-        _In_ const QUIC_ADDR* localAddress,
-        _Out_ char* ifName) {
-    struct ifaddrs *ifaddr;
-
-    getifaddrs(&ifaddr);
-
-    for (; ifaddr != NULL; ifaddr = ifaddr->ifa_next) {
-        if (ifaddr->ifa_addr == NULL) {
-            continue;
-        }
-
-        if (QuicAddrGetFamily(localAddress) == QUIC_ADDRESS_FAMILY_INET && ifaddr->ifa_addr->sa_family == AF_INET) {
-            struct sockaddr_in *ipv4 = (struct sockaddr_in *)ifaddr->ifa_addr;
-            if (ipv4->sin_addr.s_addr == localAddress->Ipv4.sin_addr.s_addr) {
-                strcpy(ifName, ifaddr->ifa_name);
-                return true;
-            }
-        } else if (QuicAddrGetFamily(localAddress) == QUIC_ADDRESS_FAMILY_INET6
-                && ifaddr->ifa_addr->sa_family == AF_INET6) {
-            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)ifaddr->ifa_addr;
-            if (ipv6->sin6_addr.s6_addr == localAddress->Ipv6.sin6_addr.s6_addr) {
-                strcpy(ifName, ifaddr->ifa_name);
-                return true;
-            }
-        }
-    }
-    return false;
 }
 #endif

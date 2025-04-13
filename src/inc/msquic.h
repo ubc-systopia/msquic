@@ -89,10 +89,12 @@ static const int TX_CORE = 6;
 static const int DPDK_CORE = 5;
 #endif
 
+#if IMPLEMENTATION == 0
 /**
  * Interface on which TX packets are sent (for profiling).
  */
 extern char *g_tx_interface;
+#endif
 
 typedef enum QUIC_TLS_PROVIDER {
     QUIC_TLS_PROVIDER_SCHANNEL                  = 0x0000,

@@ -797,7 +797,7 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
             Worker,
             QUIC_STATUS_INVALID_STATE,
             "ff_init_dpdk");
-        goto Error;
+        return;
     }
     ff_run(QuicProcessingLoop, Context, DPDK_CORE);
 #elif IMPLEMENTATION == 2

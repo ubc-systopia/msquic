@@ -1036,11 +1036,7 @@ CxPlatSocketContextInitialize(
     SocketContext->SocketFd =
         socket(
             AF_INET6,
-#ifdef PROFILE
-            SOCK_DGRAM | /* SOCK_NONBLOCK | */ SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
-#else
             SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, // TODO check if SOCK_CLOEXEC is required?
-#endif
             IPPROTO_UDP);
     if (SocketContext->SocketFd == INVALID_SOCKET) {
         Status = errno;

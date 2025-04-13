@@ -790,7 +790,15 @@ CXPLAT_THREAD_CALLBACK(QuicWorkerThread, Context)
         }
     }
 #elif IMPLEMENTATION == 1
-    assert(ff_init_dpdk() == 0);
+    if (ff_init_dpdk() != 0) {
+        QuicTraceEvent(
+            WorkerErrorStatus,
+            "[wrkr][%p] ERROR, %u, %s.",
+            Worker,
+            QUIC_STATUS_INVALID_STATE,
+            "ff_init_dpdk");
+        goto Error;
+    }
     ff_run(QuicProcessingLoop, Context, DPDK_CORE);
 #elif IMPLEMENTATION == 2
     ff_run(QuicProcessingLoop, Context, TX_CORE);

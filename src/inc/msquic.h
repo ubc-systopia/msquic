@@ -70,7 +70,7 @@ typedef _In_range_(0, QUIC_UINT62_MAX) uint64_t QUIC_UINT62;
 //
 #define QUIC_MAX_RESUMPTION_APP_DATA_LENGTH     1000
 
-#define MAX_TIMESTAMPS 16384
+#define MAX_TIMESTAMPS 16384*2
 
 #ifdef PROFILE
 struct MsQuicTxProfile {
@@ -89,10 +89,12 @@ static const int TX_CORE = 6;
 static const int DPDK_CORE = 5;
 #endif
 
+#if IMPLEMENTATION == 0
 /**
  * Interface on which TX packets are sent (for profiling).
  */
 extern char *g_tx_interface;
+#endif
 
 typedef enum QUIC_TLS_PROVIDER {
     QUIC_TLS_PROVIDER_SCHANNEL                  = 0x0000,

@@ -2313,11 +2313,13 @@ CxPlatDataPathRunEC(
     )
 {
 #if IMPLEMENTATION != 0
-    pthread_mutex_lock(&initialization_mutex);
-    while (!initialized) {
-        pthread_cond_wait(&initialization_cv, &initialization_mutex);
+    if (!initialized) {
+        pthread_mutex_lock(&initialization_mutex);
+        while (!initialized) {
+            pthread_cond_wait(&initialization_cv, &initialization_mutex);
+        }
+        pthread_mutex_unlock(&initialization_mutex);
     }
-    pthread_mutex_unlock(&initialization_mutex);
 #endif
 
     CXPLAT_DATAPATH_PROC_CONTEXT** EcProcContext = (CXPLAT_DATAPATH_PROC_CONTEXT**)Context;

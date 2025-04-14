@@ -176,7 +176,7 @@ CxPlatWorkersInit(
         }
 #elif IMPLEMENTATION == 2
         StartDpdkThread();
-        ff_run(QuicPlatformWorkerLoop, &CxPlatWorkers[i].Thread, RX_CORE);
+        ff_run(QuicPlatformWorkerLoop, &CxPlatWorkers[i].Context, RX_CORE);
 #endif
     }
 
